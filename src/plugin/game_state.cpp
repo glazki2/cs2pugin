@@ -9,6 +9,7 @@
 #include <tier1/utlvector.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -63,6 +64,42 @@ namespace cs2fow
 			return -1;
 		}
 		return entity_index(system->GetEntityInstance(handle));
+	}
+
+	bool plugin::validate_limited_runtime(std::string& error) const
+	{
+		// Limited mode trusts the entity-system offset without a verified binary, so
+		// prove it points at a live C++ object from a game binary before any use.
+		if (game_resource_ == nullptr || compatibility_.entity_system_offset() == 0)
+		{
+			error = "limited mode: game resource service is unavailable";
+			return false;
+		}
+		void* system_pointer = nullptr;
+		const auto* slot = reinterpret_cast<const std::byte*>(game_resource_) + compatibility_.entity_system_offset();
+		if (!runtime_compatibility::safe_read(slot, &system_pointer, sizeof(system_pointer)) || system_pointer == nullptr)
+		{
+			error = "limited mode: entity system pointer is unreadable";
+			return false;
+		}
+		void* system_vtable = nullptr;
+		void* service_vtable = nullptr;
+		if (!runtime_compatibility::safe_read(system_pointer, &system_vtable, sizeof(system_vtable))
+			|| !runtime_compatibility::safe_read(game_resource_, &service_vtable, sizeof(service_vtable))
+			|| !(compatibility_.address_in_server_module(system_vtable) || runtime_compatibility::same_module(system_vtable, service_vtable)))
+		{
+			error = "limited mode: entity system offset does not point at the game entity system";
+			return false;
+		}
+		CEntityInstance* world = static_cast<CGameEntitySystem*>(system_pointer)->GetEntityInstance(CEntityIndex(0));
+		const char* name = world != nullptr && world->m_pEntity != nullptr ? world->m_pEntity->GetClassname() : nullptr;
+		// CS2 registers the world as "worldent"; "worldspawn" is its map-file name.
+		if (name == nullptr || (std::strcmp(name, "worldent") != 0 && std::strcmp(name, "worldspawn") != 0))
+		{
+			error = "limited mode: entity 0 is not the world entity";
+			return false;
+		}
+		return true;
 	}
 
 	CGameEntitySystem* plugin::entity_system() const
@@ -459,6 +496,13 @@ namespace cs2fow
 			if (!value.players[slot].valid)
 			{
 				player_bone_cache_[slot] = {};
+				continue;
+			}
+			if (!compatibility_.bones_available())
+			{
+				player_state& player = value.players[slot];
+				player.capsule_count = visibility_hull_capsules(player.origin, player.mins, player.maxs, player.capsules);
+				player.capsule_count != 0 ? ++capsule_players : ++capsule_failed_players;
 				continue;
 			}
 			capture_animated_capsules(animated_pawns[slot], slot, value.players[slot], now) ? ++capsule_players : ++capsule_failed_players;

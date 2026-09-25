@@ -27,6 +27,10 @@ def configure(compiler, plugin=False):
       compiler.defines += ['stricmp=strcasecmp', '_stricmp=strcasecmp', '_snprintf=snprintf', '_vsnprintf=vsnprintf', 'HAVE_STDINT_H', 'GNUC']
       compiler.cflags += ['-fPIC', '-fvisibility=hidden']
       compiler.cxxflags += ['-fvisibility-inlines-hidden']
+      if compiler.family == 'gcc':
+        # STB_GNU_UNIQUE symbols keep the library mapped after dlclose, which
+        # Metamod relies on to unload plugins cleanly.
+        compiler.cxxflags += ['-fno-gnu-unique']
       compiler.linkflags += ['-ldl']
   if builder.options.debug:
     compiler.defines += ['DEBUG', '_DEBUG']
@@ -81,7 +85,7 @@ configure(plugin.compiler, True)
 plugin.compiler.cxxincludes += [
   os.path.join(root, 'src', 'plugin'),
   os.path.join(config.mms_root, 'core'),
-  os.path.join(config.mms_root, 'core', 'sourcehook'),
+  os.path.join(config.mms_root, 'third_party', 'khook', 'include'),
   os.path.join(sdk['path'], 'public', 'entity2'),
 ]
 for manifest in config.sdk_manifests:

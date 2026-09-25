@@ -16,6 +16,8 @@
 #include <Windows.h>
 #else
 #include <dlfcn.h>
+#include <sys/uio.h>
+#include <unistd.h>
 #endif
 
 namespace cs2fow
@@ -118,8 +120,19 @@ namespace cs2fow
 		}
 		if (!verify_server_binary(game_entities, error))
 		{
-			set_report(compatibility_state::update_required, std::move(error), he_event_manager_available);
-			return false;
+			// Unknown CS2 build: never call private functions or read private smoke
+			// layouts. Only schema fields and SDK-level layouts (entity system,
+			// CheckTransmit recipient) remain, and those are checked at runtime.
+			drop_private_build_data();
+			std::string schema_error;
+			if (!resolve_schema(schema, schema_error))
+			{
+				set_report(compatibility_state::update_required, error + "; " + schema_error, he_event_manager_available);
+				return false;
+			}
+			server_module_base_ = game_entities == nullptr ? nullptr : module_base(*reinterpret_cast<void**>(game_entities));
+			set_report(compatibility_state::limited, error + "; walls-only compatibility mode", he_event_manager_available);
+			return true;
 		}
 		if (!resolve_private_functions(game_entities, error) || !resolve_schema(schema, error))
 		{
@@ -131,9 +144,30 @@ namespace cs2fow
 		return true;
 	}
 
+	void runtime_compatibility::drop_private_build_data()
+	{
+		lookup_bone_rva_ = 0;
+		get_bone_transform_rva_ = 0;
+		game_event_manager_vtable_rva_ = 0;
+		create_entity_by_name_rva_ = 0;
+		dispatch_spawn_rva_ = 0;
+		remove_entity_rva_ = 0;
+		teleport_vtable_index_ = 0;
+		smoke_gamedata_available_ = false;
+		lookup_bone_ = nullptr;
+		get_bone_transform_ = nullptr;
+		create_entity_by_name_ = nullptr;
+		dispatch_spawn_ = nullptr;
+		remove_entity_ = nullptr;
+	}
+
 	void runtime_compatibility::set_report(compatibility_state state, std::string detail, bool he_event_manager_available)
 	{
 		std::vector<std::string> missing;
+		if (state == compatibility_state::limited)
+		{
+			missing = {"animated capsules (hull-shaped body used)", "smoke occlusion", "HE event listener", "temporary LOS debug beams"};
+		}
 		if (state == compatibility_state::compatible)
 		{
 			if (!smoke_available())
@@ -477,6 +511,37 @@ namespace cs2fow
 			return false;
 		}
 		return true;
+	}
+
+	bool runtime_compatibility::address_in_server_module(const void* address) const
+	{
+		return address != nullptr && server_module_base_ != nullptr && module_base(address) == server_module_base_;
+	}
+
+	bool runtime_compatibility::same_module(const void* left, const void* right)
+	{
+		if (left == nullptr || right == nullptr)
+		{
+			return false;
+		}
+		const void* base = module_base(left);
+		return base != nullptr && base == module_base(right);
+	}
+
+	bool runtime_compatibility::safe_read(const void* address, void* output, size_t size)
+	{
+		if (address == nullptr || output == nullptr || size == 0)
+		{
+			return false;
+		}
+#if defined(_WIN32)
+		SIZE_T copied = 0;
+		return ReadProcessMemory(GetCurrentProcess(), address, output, size, &copied) != 0 && copied == size;
+#else
+		iovec local {output, size};
+		iovec remote {const_cast<void*>(address), size};
+		return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
+#endif
 	}
 
 	void* runtime_compatibility::game_event_manager_vtable() const

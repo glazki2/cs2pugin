@@ -146,11 +146,48 @@ namespace cs2fow
 		}
 	}
 
+	bool plugin::checktransmit_layout_plausible(CCheckTransmitInfo** infos, int count) const
+	{
+		// Structural facts every real recipient list satisfies. A private layout
+		// change breaks at least one of them long before it could hide the wrong
+		// player: unique in-range slots, a boolean full-update flag, and two
+		// distinct entity lists.
+		uint64_t seen = 0;
+		for (int i = 0; i < count; ++i)
+		{
+			const CCheckTransmitInfo* info = infos[i];
+			if (info == nullptr)
+			{
+				continue;
+			}
+			int slot = -1;
+			std::memcpy(&slot, reinterpret_cast<const char*>(info) + compatibility_.recipient_slot_offset(), sizeof(slot));
+			if (slot < 0 || slot >= static_cast<int>(k_max_players) || (seen & (uint64_t {1} << slot)) != 0)
+			{
+				return false;
+			}
+			seen |= uint64_t {1} << slot;
+			uint8_t full_update = 0;
+			std::memcpy(&full_update, reinterpret_cast<const char*>(info) + compatibility_.transmit_offsets().full_update_offset, sizeof(full_update));
+			if (full_update > 1u || (info->m_pTransmitEntity != nullptr && info->m_pTransmitEntity == info->m_pTransmitAlways))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	void plugin::hook_check_transmit(CCheckTransmitInfo** infos, int count, CBitVec<MAX_EDICTS>&, CBitVec<MAX_EDICTS>&, const Entity2Networkable_t**,
 									 const uint16*, int)
 	{
-		if (!settings::current().enable || !disabled_reason_.empty() || infos == nullptr || count <= 0 || count > static_cast<int>(k_max_players))
+		if (!settings::current().enable || !disabled_reason_.empty() || infos == nullptr || count <= 0 || count > static_cast<int>(k_max_players)
+			|| transmit_layout_invalid_.load(std::memory_order_relaxed))
 		{
+			return;
+		}
+		if (!checktransmit_layout_plausible(infos, count))
+		{
+			transmit_layout_invalid_.store(true);
 			return;
 		}
 		const auto timing_started = std::chrono::steady_clock::now();

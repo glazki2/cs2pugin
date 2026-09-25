@@ -156,6 +156,44 @@ namespace cs2fow
 		return finite(capsule.start) && finite(capsule.end) && std::isfinite(capsule.radius) && capsule.radius > 0.0f && capsule.radius <= 32.0f;
 	}
 
+	uint32_t visibility_hull_capsules(vec3 origin, vec3 mins, vec3 maxs, std::array<visibility_capsule, k_visibility_capsule_count>& capsules)
+	{
+		const float width_x = maxs.x - mins.x;
+		const float width_y = maxs.y - mins.y;
+		const float height = maxs.z - mins.z;
+		if (!std::isfinite(width_x) || !std::isfinite(width_y) || !std::isfinite(height) || width_x <= 0.0f || width_y <= 0.0f
+			|| height <= 0.0f)
+		{
+			return 0;
+		}
+		const float grid = static_cast<float>(k_visibility_hull_capsule_grid);
+		const float cell_x = width_x / grid;
+		const float cell_y = width_y / grid;
+		// Half the cell diagonal reaches every point of the cell from its centre, so
+		// each vertical capsule covers its column of the hull; 0.5 units absorbs
+		// rounding. The caps add the same radius above the head and below the feet.
+		const float radius = 0.5f * std::sqrt(cell_x * cell_x + cell_y * cell_y) + 0.5f;
+		const float bottom = origin.z + mins.z;
+		const float top = origin.z + maxs.z;
+		uint32_t count = 0;
+		for (uint32_t column = 0; column < k_visibility_hull_capsule_grid; ++column)
+		{
+			for (uint32_t row = 0; row < k_visibility_hull_capsule_grid; ++row)
+			{
+				const float x = origin.x + mins.x + (static_cast<float>(column) + 0.5f) * cell_x;
+				const float y = origin.y + mins.y + (static_cast<float>(row) + 0.5f) * cell_y;
+				visibility_capsule& capsule = capsules[count];
+				capsule = {{x, y, bottom}, {x, y, top}, radius};
+				if (!valid_visibility_capsule(capsule))
+				{
+					return 0;
+				}
+				++count;
+			}
+		}
+		return count;
+	}
+
 	float visibility_shoulder_offset_units(float rtt_seconds, const visibility_tuning& tuning, bool movement_intent)
 	{
 		const float configured_base = std::max(0.0f, tuning.shoulder_base_units);

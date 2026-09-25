@@ -72,10 +72,28 @@ namespace cs2fow
 		bool initialize(const std::filesystem::path& base_directory, ISource2GameEntities* game_entities, ISchemaSystem* schema,
 						bool he_event_manager_available);
 
+		// True when filtering may run: the verified build, or limited mode.
 		bool valid() const
 		{
-			return report_.state == compatibility_state::compatible;
+			return report_.state == compatibility_state::compatible || report_.state == compatibility_state::limited;
 		}
+
+		bool limited() const
+		{
+			return report_.state == compatibility_state::limited;
+		}
+
+		bool bones_available() const
+		{
+			return lookup_bone_ != nullptr && get_bone_transform_ != nullptr;
+		}
+
+		// True when the address belongs to the loaded server binary.
+		bool address_in_server_module(const void* address) const;
+		// True when both addresses belong to the same loaded binary.
+		static bool same_module(const void* left, const void* right);
+		// Copies size bytes from address without faulting; false when unreadable.
+		static bool safe_read(const void* address, void* output, size_t size);
 
 		const compatibility_report& report() const
 		{
@@ -163,6 +181,7 @@ namespace cs2fow
 	private:
 		bool read_gamedata(const std::filesystem::path& path, std::string& error);
 		bool verify_server_binary(ISource2GameEntities* game_entities, std::string& error);
+		void drop_private_build_data();
 		bool resolve_private_functions(ISource2GameEntities* game_entities, std::string& error);
 		bool resolve_schema(ISchemaSystem* schema, std::string& error);
 		void set_report(compatibility_state state, std::string detail, bool he_event_manager_available);

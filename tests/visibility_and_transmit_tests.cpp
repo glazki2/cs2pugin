@@ -452,9 +452,72 @@ namespace
 
 		assert(capsule_visible_from_origin(open, viewer, std::span<const visibility_capsule>(target.capsules.data(), target.capsules.size() - 1u),
 										   nullptr, 0.0f, deadline)
+			   == capsule_query_result::visible);
+		assert(capsule_visible_from_origin(open, viewer, std::span<const visibility_capsule>(target.capsules.data(), 0u), nullptr, 0.0f, deadline)
 			   == capsule_query_result::indeterminate);
 		assert(capsule_visible_from_origin(open, viewer, target.capsules, nullptr, 0.0f, std::chrono::steady_clock::now())
 			   == capsule_query_result::indeterminate);
+	}
+
+	void test_hull_capsules()
+	{
+		std::array<visibility_capsule, k_visibility_capsule_count> capsules {};
+		const vec3 origin {100.0f, -50.0f, 8.0f};
+		const vec3 mins {-16.0f, -16.0f, 0.0f};
+		const vec3 maxs {16.0f, 16.0f, 72.0f};
+		assert(visibility_hull_capsules(origin, mins, maxs, capsules) == k_visibility_hull_capsule_count);
+		const auto distance_sq = [](vec3 point, vec3 start, vec3 end)
+		{
+			const vec3 axis {end.x - start.x, end.y - start.y, end.z - start.z};
+			const vec3 offset {point.x - start.x, point.y - start.y, point.z - start.z};
+			const float length_sq = axis.x * axis.x + axis.y * axis.y + axis.z * axis.z;
+			const float t =
+				length_sq <= 0.0f ? 0.0f : std::clamp((offset.x * axis.x + offset.y * axis.y + offset.z * axis.z) / length_sq, 0.0f, 1.0f);
+			const vec3 closest {start.x + axis.x * t, start.y + axis.y * t, start.z + axis.z * t};
+			const vec3 delta {point.x - closest.x, point.y - closest.y, point.z - closest.z};
+			return delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
+		};
+		constexpr int k_steps = 16;
+		for (int ix = 0; ix <= k_steps; ++ix)
+		{
+			for (int iy = 0; iy <= k_steps; ++iy)
+			{
+				for (int iz = 0; iz <= k_steps; ++iz)
+				{
+					const float fx = static_cast<float>(ix) / k_steps;
+					const float fy = static_cast<float>(iy) / k_steps;
+					const float fz = static_cast<float>(iz) / k_steps;
+					const vec3 point {origin.x + mins.x + (maxs.x - mins.x) * fx, origin.y + mins.y + (maxs.y - mins.y) * fy,
+									  origin.z + mins.z + (maxs.z - mins.z) * fz};
+					bool covered = false;
+					for (uint32_t index = 0; index < k_visibility_hull_capsule_count && !covered; ++index)
+					{
+						covered = distance_sq(point, capsules[index].start, capsules[index].end) <= capsules[index].radius * capsules[index].radius;
+					}
+					assert(covered);
+				}
+			}
+		}
+		for (uint32_t index = 0; index < k_visibility_hull_capsule_count; ++index)
+		{
+			assert(valid_visibility_capsule(capsules[index]) && capsules[index].radius <= 9.0f);
+			assert(capsules[index].start.z == origin.z + mins.z && capsules[index].end.z == origin.z + maxs.z);
+		}
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		assert(visibility_hull_capsules(origin, maxs, mins, capsules) == 0);
+		assert(visibility_hull_capsules(origin, {nan, -16.0f, 0.0f}, maxs, capsules) == 0);
+
+		const vec3 viewer {0.0f, 0.0f, 64.0f};
+		const vec3 target {128.0f, 0.0f, 0.0f};
+		const uint32_t count = visibility_hull_capsules(target, mins, maxs, capsules);
+		const std::span<const visibility_capsule> body(capsules.data(), count);
+		const auto deadline = std::chrono::steady_clock::time_point::max();
+		const bvh8_data wall =
+			test_world({{{64, -200, -100}, {64, 200, -100}, {64, -200, 200}}, {{64, 200, 200}, {64, -200, 200}, {64, 200, -100}}});
+		assert(capsule_visible_from_origin(wall, viewer, body, nullptr, 0.0f, deadline) == capsule_query_result::blocked);
+		const bvh8_data low_wall =
+			test_world({{{64, -200, -100}, {64, 200, -100}, {64, -200, 40}}, {{64, 200, 40}, {64, -200, 40}, {64, 200, -100}}});
+		assert(capsule_visible_from_origin(low_wall, viewer, body, nullptr, 0.0f, deadline) == capsule_query_result::visible);
 	}
 
 	void test_visibility_worker()
@@ -1175,6 +1238,7 @@ void run_visibility_and_transmit_tests()
 	test_smoke_occlusion();
 	test_visibility_sampling();
 	test_capsule_visibility();
+	test_hull_capsules();
 	test_visibility_worker();
 	test_lifecycle_guard();
 	test_visual_group_key();

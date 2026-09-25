@@ -26,6 +26,10 @@ namespace cs2fow
 	enum class compatibility_state : uint8_t
 	{
 		compatible,
+		// The server binary is not the one the gamedata was verified against. Only
+		// schema fields and SDK-level layouts are used: walls filter with a
+		// conservative hull-shaped body; bones, smoke and debug beams stay off.
+		limited,
 		update_required,
 		unsupported_system,
 		error
@@ -46,6 +50,10 @@ namespace cs2fow
 		{
 			case compatibility_state::compatible:
 				break;
+			case compatibility_state::limited:
+				report.operator_action =
+					"Walls-only protection is active. Install gamedata verified for this CS2 build to restore animated capsules and smoke.";
+				break;
 			case compatibility_state::update_required:
 				report.operator_action = "Install the CS2FOW package built for this CS2 server version.";
 				break;
@@ -65,6 +73,8 @@ namespace cs2fow
 		{
 			case compatibility_state::compatible:
 				return "compatible";
+			case compatibility_state::limited:
+				return "limited";
 			case compatibility_state::update_required:
 				return "update required";
 			case compatibility_state::unsupported_system:

@@ -704,7 +704,7 @@ namespace cs2fow
 													 std::chrono::steady_clock::time_point deadline, const std::atomic_bool* stopping,
 													 capsule_query_stats* stats, capsule_occluder_cache* occluder_cache)
 	{
-		if (capsules.size() != k_visibility_capsule_count)
+		if (capsules.empty() || capsules.size() > k_visibility_capsule_count)
 		{
 			return capsule_query_result::indeterminate;
 		}
@@ -751,7 +751,8 @@ namespace cs2fow
 			}
 		}
 		thread_local occlusion_scratch scratch;
-		const map_render_result map_result = render_map_moc(geometry, view, projected, scratch, deadline, stopping, stats, occluder_cache);
+		const map_render_result map_result = render_map_moc(geometry, view, std::span<const projected_bounds>(projected.data(), capsules.size()), scratch,
+															deadline, stopping, stats, occluder_cache);
 		if (map_result == map_render_result::target_occluded)
 		{
 			return capsule_query_result::blocked;

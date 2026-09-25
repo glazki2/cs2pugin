@@ -22,6 +22,7 @@ namespace cs2fow
 		bool debug {};
 		int debug_los_player {};
 		bool automatic_updates {false};
+		bool limited_mode {true};
 
 		bool operator==(const runtime_configuration&) const = default;
 	};
@@ -62,7 +63,7 @@ namespace cs2fow
 		{
 			changes |= setting_change_visibility;
 		}
-		if (before.worker_threads != after.worker_threads)
+		if (before.worker_threads != after.worker_threads || before.limited_mode != after.limited_mode)
 		{
 			changes |= setting_change_worker_threads;
 		}

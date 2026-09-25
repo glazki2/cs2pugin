@@ -58,7 +58,7 @@ def main() -> None:
     order = [
         worker.index("pair_started < revealed_until_"),
         worker.index("capsule_visible_from_origin(*data_"),
-        worker.index("for (const vec3 &point : aabb_points)"),
+        re.search(r"for \(const vec3\s*&\s*point : aabb_points\)", worker).start(),
         worker.index("if (has_muzzle)"),
     ]
     assert order == sorted(order)
@@ -96,7 +96,9 @@ def main() -> None:
     assert "DEFAULT_HE_RADIUS = 100" in fps
     assert "DEFAULT_HE_SECONDS = 2.5" in fps
 
-    assert "bool blocked = to.capsule_count == k_visibility_capsule_count" in worker
+    # Studio simulates the verified build (all 19 animated capsules); limited mode
+    # feeds the same code a smaller hull-shaped body.
+    assert "bool blocked = to.capsule_count != 0 && to.capsule_count <= k_visibility_capsule_count" in worker
     assert "k_visibility_probe_capsule" not in worker
     assert "let rawVisible = !valid" in fps and "let indeterminate = !valid" in fps
     assert "using static points" not in viewer

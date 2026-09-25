@@ -21,7 +21,7 @@ function(cs2fow_configure_target target)
     "${CMAKE_SOURCE_DIR}"
     ${CS2FOW_SDK_INCLUDE_DIRS}
     "${CS2FOW_MMS_ROOT}/core"
-    "${CS2FOW_MMS_ROOT}/core/sourcehook"
+    "${CS2FOW_MMS_ROOT}/third_party/khook/include"
   )
 
   # IMPORTANT: convar.cpp / memoverride.cpp are NOT added here. They are listed

@@ -116,7 +116,9 @@ def main() -> None:
   manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
   DEPENDENCIES.mkdir(parents=True, exist_ok=True)
   checkout("ambuild", manifest["ambuild"])
-  checkout("metamod-source", manifest["metamod"])
+  metamod = checkout("metamod-source", manifest["metamod"])
+  # Metamod:Source API 18 plugins include khook.hpp from this submodule.
+  git(metamod, "submodule", "update", "--init", "--depth", "1", "third_party/khook")
   checkout("hl2sdk-manifests", manifest["hl2sdk_manifests"])
   checkout("hl2sdk-cs2", manifest["hl2sdk"])
   install_vrf(manifest, args.platform)

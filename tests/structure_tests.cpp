@@ -52,6 +52,10 @@ void run_structure_tests()
 	updates_disabled.automatic_updates = false;
 	assert(transaction.apply_direct(updates_disabled) == setting_change_none);
 	assert(!transaction.active().automatic_updates);
+	assert(runtime_configuration {}.limited_mode && !runtime_configuration {}.automatic_updates);
+	runtime_configuration limited_off = updates_disabled;
+	limited_off.limited_mode = false;
+	assert(transaction.apply_direct(limited_off) == setting_change_worker_threads);
 
 	runtime_configuration invalid;
 	invalid.enable = false;
@@ -68,6 +72,9 @@ void run_structure_tests()
 	const compatibility_report compatible = make_compatibility_report(compatibility_state::compatible, "verified", {"temporary LOS debug beams"});
 	assert(compatible.operator_action.empty());
 	assert(compatible.missing_capabilities.size() == 1);
+	const compatibility_report limited = make_compatibility_report(compatibility_state::limited, "fingerprint mismatch", {"smoke occlusion"});
+	assert(limited.operator_action.find("gamedata") != std::string::npos);
+	assert(std::string(compatibility_state_name(compatibility_state::limited)) == "limited");
 	const compatibility_report update = make_compatibility_report(compatibility_state::update_required, "fingerprint mismatch");
 	assert(update.operator_action.find("package") != std::string::npos);
 	const compatibility_report unsupported = make_compatibility_report(compatibility_state::unsupported_system, "AVX missing");

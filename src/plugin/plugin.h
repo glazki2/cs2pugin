@@ -23,6 +23,7 @@
 #include <tier1/convar.h>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -141,7 +142,11 @@ namespace cs2fow
 		void hook_game_frame(bool simulating, bool first_tick, bool last_tick);
 		void hook_check_transmit(CCheckTransmitInfo** infos, int count, CBitVec<MAX_EDICTS>&, CBitVec<MAX_EDICTS>&, const Entity2Networkable_t**,
 								 const uint16*, int);
-		int hook_load_events_from_file(const char* filename, bool search_all);
+		KHook::Return<void> khook_game_frame(IServerGameDLL* server, bool simulating, bool first_tick, bool last_tick);
+		KHook::Return<void> khook_check_transmit(ISource2GameEntities* entities, CCheckTransmitInfo** infos, int count,
+												 CBitVec<MAX_EDICTS>& union_transmit, CBitVec<MAX_EDICTS>& union_transmit_always,
+												 const Entity2Networkable_t** networkables, const uint16* entity_indices, int entity_index_count);
+		KHook::Return<int> khook_load_events_from_file(IGameEventManager2* manager, const char* filename, bool search_all);
 		void FireGameEvent(IGameEvent* event) override;
 		void print_status() const;
 		void print_metrics() const;
@@ -208,6 +213,8 @@ namespace cs2fow
 		void finish_config_load(bool success);
 		void change_map(const std::string& map);
 		void disable(std::string reason);
+		bool validate_limited_runtime(std::string& error) const;
+		bool checktransmit_layout_plausible(CCheckTransmitInfo** infos, int count) const;
 		CGameEntitySystem* entity_system() const;
 		CEntityInstance* controller(uint32_t slot) const;
 		CEntityInstance* pawn(CEntityInstance* controller) const;
@@ -238,9 +245,20 @@ namespace cs2fow
 		game_resource_service* game_resource_ {};
 		runtime_compatibility compatibility_;
 		updater_service updater_;
-		int game_frame_hook_id_ {};
-		int check_transmit_hook_id_ {};
-		int game_event_load_hook_id_ {};
+		// Metamod:Source 2.0 API 18 removed SourceHook; these KHook virtual hooks
+		// are removed by Unload and again by Metamod when the plugin unloads.
+		KHook::Virtual<IServerGameDLL, void, bool, bool, bool> game_frame_hook_ {&IServerGameDLL::GameFrame, this, nullptr,
+																				  &plugin::khook_game_frame};
+		KHook::Virtual<ISource2GameEntities, void, CCheckTransmitInfo**, int, CBitVec<MAX_EDICTS>&, CBitVec<MAX_EDICTS>&,
+					   const Entity2Networkable_t**, const uint16*, int>
+			check_transmit_hook_ {&ISource2GameEntities::CheckTransmit, this, nullptr, &plugin::khook_check_transmit};
+		KHook::Virtual<IGameEventManager2, int, const char*, bool> game_event_load_hook_ {&IGameEventManager2::LoadEventsFromFile, this, nullptr,
+																						 &plugin::khook_load_events_from_file};
+		// AddGlobal reads the vtable through its argument, so this holds the gamedata vtable address.
+		void* game_event_manager_vtable_ {};
+		bool game_frame_hooked_ {};
+		bool check_transmit_hooked_ {};
+		bool game_event_load_hooked_ {};
 		std::string map_;
 		std::string pending_map_;
 		std::string disabled_reason_ {"no map loaded"};
@@ -266,6 +284,9 @@ namespace cs2fow
 		std::chrono::steady_clock::time_point last_los_debug_draw_ {};
 		std::array<los_debug_beam, k_visibility_debug_beam_count_max> los_debug_beams_;
 		bool los_debug_failed_ {};
+		// Set from CheckTransmit when the recipient list looks structurally wrong;
+		// the game thread turns it into a disabled state until the next map.
+		std::atomic_bool transmit_layout_invalid_ {};
 		uint64_t snapshot_sequence_ {};
 		uint32_t active_worker_threads_ {};
 	};

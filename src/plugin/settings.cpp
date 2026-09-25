@@ -45,6 +45,10 @@ namespace cs2fow
 										 0, true, static_cast<int>(k_max_players), on_convar_changed<int>);
 	CConVar<bool> cs2fow_auto_update("cs2fow_auto_update", FCVAR_NONE, "Automatically download verified compatible stable updates", false,
 									 on_convar_changed<bool>);
+	CConVar<bool> cs2fow_limited_mode("cs2fow_limited_mode", FCVAR_NONE,
+									  "Allow walls-only filtering when the CS2 server build is not the one gamedata was verified for (applies on map "
+									  "activation)",
+									  true, on_convar_changed<bool>);
 
 	namespace
 	{
@@ -67,7 +71,7 @@ namespace cs2fow
 				{cs2fow_enable.Get(), cs2fow_smoke_occlusion.Get(), cs2fow_he_clear_radius_units.Get(), cs2fow_he_clear_seconds.Get(),
 				 cs2fow_filter_teammates.Get(), cs2fow_update_interval_ms.Get(), cs2fow_worker_threads.Get(), cs2fow_shoulder_base_units.Get(),
 				 cs2fow_shoulder_rtt_scale.Get(), cs2fow_max_shoulder_units.Get(), cs2fow_visibility_hold_ms.Get(), cs2fow_debug.Get(),
-				 cs2fow_debug_los_player.Get(), cs2fow_auto_update.Get()});
+				 cs2fow_debug_los_player.Get(), cs2fow_auto_update.Get(), cs2fow_limited_mode.Get()});
 			if (changes != setting_change_none && config_change_callback != nullptr)
 			{
 				config_change_callback(changes);
@@ -98,7 +102,8 @@ namespace cs2fow
 					cs2fow_visibility_hold_ms.Get(),
 					cs2fow_debug.Get(),
 					cs2fow_debug_los_player.Get(),
-					cs2fow_auto_update.Get()};
+					cs2fow_auto_update.Get(),
+					cs2fow_limited_mode.Get()};
 		}
 
 		void write_convars(const runtime_configuration& value)
@@ -118,6 +123,7 @@ namespace cs2fow
 			cs2fow_debug.Set(value.debug);
 			cs2fow_debug_los_player.Set(value.debug_los_player);
 			cs2fow_auto_update.Set(value.automatic_updates);
+			cs2fow_limited_mode.Set(value.limited_mode);
 			restoring_configuration = false;
 		}
 

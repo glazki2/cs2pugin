@@ -103,11 +103,6 @@ namespace cs2fow
 		g_plugin.print_entities(edict);
 	}
 
-	SH_DECL_HOOK3_void(IServerGameDLL, GameFrame, SH_NOATTRIB, false, bool, bool, bool);
-	SH_DECL_HOOK7_void(ISource2GameEntities, CheckTransmit, SH_NOATTRIB, false, CCheckTransmitInfo**, int, CBitVec<MAX_EDICTS>&, CBitVec<MAX_EDICTS>&,
-					   const Entity2Networkable_t**, const uint16*, int);
-	SH_DECL_HOOK2(IGameEventManager2, LoadEventsFromFile, SH_NOATTRIB, false, int, const char*, bool);
-
 	bool plugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late)
 	{
 		PLUGIN_SAVEVARS();
@@ -123,27 +118,18 @@ namespace cs2fow
 		GET_V_IFACE_ANY(GetServerFactory, game_entities_, ISource2GameEntities, SOURCE2GAMEENTITIES_INTERFACE_VERSION);
 		GET_V_IFACE_ANY(GetEngineFactory, g_pNetworkServerService, INetworkServerService, NETWORKSERVERSERVICE_INTERFACE_VERSION);
 		g_pCVar = cvar_;
-		game_frame_hook_id_ = SH_ADD_HOOK(IServerGameDLL, GameFrame, server_, SH_MEMBER(this, &plugin::hook_game_frame), true);
-		check_transmit_hook_id_ =
-			SH_ADD_HOOK(ISource2GameEntities, CheckTransmit, game_entities_, SH_MEMBER(this, &plugin::hook_check_transmit), true);
-		if (game_frame_hook_id_ == 0 || check_transmit_hook_id_ == 0)
+		if (::KHook::__exported__khook == nullptr)
 		{
-			if (game_frame_hook_id_ != 0)
-			{
-				SH_REMOVE_HOOK_ID(game_frame_hook_id_);
-			}
-			if (check_transmit_hook_id_ != 0)
-			{
-				SH_REMOVE_HOOK_ID(check_transmit_hook_id_);
-			}
-			game_frame_hook_id_ = 0;
-			check_transmit_hook_id_ = 0;
 			if (error != nullptr && maxlen != 0)
 			{
-				ismm->Format(error, maxlen, "Could not install required SourceHook hooks");
+				ismm->Format(error, maxlen, "Metamod did not provide the KHook detour interface (Metamod:Source API 18 is required)");
 			}
 			return false;
 		}
+		game_frame_hook_.Add(server_);
+		game_frame_hooked_ = true;
+		check_transmit_hook_.Add(game_entities_);
+		check_transmit_hooked_ = true;
 		game_events_ = static_cast<IGameEventManager2*>(ismm->VInterfaceMatch(ismm->GetEngineFactory(), k_game_event_manager_interface));
 		if (game_events_ == nullptr)
 		{
@@ -162,9 +148,9 @@ namespace cs2fow
 		updater_.start(compatibility_.detected_server_binary_fingerprint());
 		if (compatibility_.valid() && compatibility_.game_event_manager_vtable() != nullptr)
 		{
-			auto* vtable = static_cast<IGameEventManager2*>(compatibility_.game_event_manager_vtable());
-			game_event_load_hook_id_ =
-				SH_ADD_DVPHOOK(IGameEventManager2, LoadEventsFromFile, vtable, SH_MEMBER(this, &plugin::hook_load_events_from_file), true);
+			game_event_manager_vtable_ = compatibility_.game_event_manager_vtable();
+			game_event_load_hook_.AddGlobal(reinterpret_cast<IGameEventManager2*>(&game_event_manager_vtable_));
+			game_event_load_hooked_ = true;
 		}
 		if (!compatibility_.valid())
 		{
@@ -175,7 +161,7 @@ namespace cs2fow
 		{
 			META_CONPRINTF("[CS2FOW] smoke occlusion unavailable; wall filtering remains active\n");
 		}
-		else if (!he_event_available_ && game_event_load_hook_id_ == 0)
+		else if (!he_event_available_ && !game_event_load_hooked_)
 		{
 			META_CONPRINTF("[CS2FOW] HE smoke clearing unavailable; ordinary smoke remains active\n");
 		}
@@ -192,35 +178,52 @@ namespace cs2fow
 		}
 		game_events_ = nullptr;
 		he_event_available_ = false;
-		if (game_event_load_hook_id_ != 0)
+		if (game_event_load_hooked_)
 		{
-			SH_REMOVE_HOOK_ID(game_event_load_hook_id_);
+			game_event_load_hook_.RemoveGlobal(reinterpret_cast<IGameEventManager2*>(&game_event_manager_vtable_));
 		}
-		game_event_load_hook_id_ = 0;
+		game_event_load_hooked_ = false;
 		automatic_baker_.stop();
 		worker_.stop();
 		updater_.unload();
 		destroy_los_debug_beams();
-		if (game_frame_hook_id_ != 0)
+		if (game_frame_hooked_)
 		{
-			SH_REMOVE_HOOK_ID(game_frame_hook_id_);
+			game_frame_hook_.Remove(server_);
 		}
-		if (check_transmit_hook_id_ != 0)
+		if (check_transmit_hooked_)
 		{
-			SH_REMOVE_HOOK_ID(check_transmit_hook_id_);
+			check_transmit_hook_.Remove(game_entities_);
 		}
-		game_frame_hook_id_ = 0;
-		check_transmit_hook_id_ = 0;
+		game_frame_hooked_ = false;
+		check_transmit_hooked_ = false;
 		settings::cancel_load();
 		settings::shutdown();
 		ConVar_Unregister();
 		return true;
 	}
 
-	int plugin::hook_load_events_from_file(const char*, bool)
+	KHook::Return<void> plugin::khook_game_frame(IServerGameDLL*, bool simulating, bool first_tick, bool last_tick)
 	{
-		game_events_ = META_IFACEPTR(IGameEventManager2);
-		RETURN_META_VALUE(MRES_IGNORED, 0);
+		hook_game_frame(simulating, first_tick, last_tick);
+		return {KHook::Action::Ignore};
+	}
+
+	KHook::Return<void> plugin::khook_check_transmit(ISource2GameEntities*, CCheckTransmitInfo** infos, int count,
+													 CBitVec<MAX_EDICTS>& union_transmit, CBitVec<MAX_EDICTS>& union_transmit_always,
+													 const Entity2Networkable_t** networkables, const uint16* entity_indices, int entity_index_count)
+	{
+		hook_check_transmit(infos, count, union_transmit, union_transmit_always, networkables, entity_indices, entity_index_count);
+		return {KHook::Action::Ignore};
+	}
+
+	KHook::Return<int> plugin::khook_load_events_from_file(IGameEventManager2* manager, const char*, bool)
+	{
+		if (manager != nullptr)
+		{
+			game_events_ = manager;
+		}
+		return {KHook::Action::Ignore, 0};
 	}
 
 	void plugin::FireGameEvent(IGameEvent* event)
@@ -358,6 +361,20 @@ namespace cs2fow
 	{
 		worker_.stop();
 		reset_transmit_state();
+		if (compatibility_.limited())
+		{
+			if (!settings::current().limited_mode)
+			{
+				disable("CS2 server build differs from verified gamedata and cs2fow_limited_mode is 0");
+				return;
+			}
+			std::string error;
+			if (!validate_limited_runtime(error))
+			{
+				disable(error);
+				return;
+			}
+		}
 		data_ = std::move(data);
 		active_worker_threads_ = static_cast<uint32_t>(settings::current().worker_threads);
 		if (!worker_.start(&data_, active_worker_threads_))
@@ -630,6 +647,7 @@ namespace cs2fow
 		data_ = {};
 		source_ = {};
 		reset_transmit_state();
+		transmit_layout_invalid_.store(false);
 		map_ = map;
 		if (!compatibility_.valid())
 		{
@@ -676,6 +694,11 @@ namespace cs2fow
 			request_map_change(current_map);
 		}
 		poll_automatic_bake();
+		if (transmit_layout_invalid_.load() && disabled_reason_.empty())
+		{
+			disable("CheckTransmit recipient layout check failed; filtering stays off until the next map");
+			META_CONPRINTF("[CS2FOW] %s\n", disabled_reason_.c_str());
+		}
 		const runtime_configuration& configuration = settings::current();
 		if (!simulating || !configuration.enable || !disabled_reason_.empty())
 		{
@@ -909,7 +932,17 @@ namespace cs2fow
 			action = "Set mp_playerid 1 to prevent stale enemy target IDs.";
 		}
 
+		if (action == nullptr && compatibility_.limited())
+		{
+			action = compatibility_.report().operator_action.c_str();
+		}
+
 		META_CONPRINTF("[CS2FOW] CS2FOW %s: %s\n", CS2FOW_VERSION, runtime_health_state_name(state));
+		META_CONPRINTF("[CS2FOW] Game build: %s\n",
+					   !compatibility_.valid()	   ? compatibility_state_name(compatibility_.report().state)
+					   : compatibility_.limited() ? (configuration.limited_mode ? "unverified; limited mode (walls only, hull-shaped body, smoke off)"
+																				: "unverified; limited mode disabled by cs2fow_limited_mode 0")
+												  : "verified gamedata (animated capsules, smoke)");
 		const char* configuration_state = settings::loading() ? "loading"
 										  : settings::load_state() == configuration_load_state::failed
 											  ? "previous settings restored after a failed load"

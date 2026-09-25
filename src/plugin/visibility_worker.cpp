@@ -356,7 +356,8 @@ namespace cs2fow
 					++totals.hold_reuses;
 					continue;
 				}
-				bool blocked = to.capsule_count == k_visibility_capsule_count;
+				// Animated capture supplies all 19 capsules; limited mode supplies the hull body.
+				bool blocked = to.capsule_count != 0 && to.capsule_count <= k_visibility_capsule_count;
 				const visibility_player target_sample = visibility_sample(to);
 				vec3 muzzle;
 				const bool has_muzzle = visibility_muzzle_point(target_sample, muzzle);
@@ -368,7 +369,7 @@ namespace cs2fow
 					capsule_occluder_cache& cached_occluders = cached_occluders_[recipient][target][origin_index];
 					capsule_query_stats query_stats;
 					const capsule_query_result capsule_result =
-						capsule_visible_from_origin(*data_, origin, std::span<const visibility_capsule>(to.capsules), active_smokes,
+						capsule_visible_from_origin(*data_, origin, std::span<const visibility_capsule>(to.capsules.data(), to.capsule_count), active_smokes,
 													current.smoke_age_advance, current.deadline, &stopping_, &query_stats, &cached_occluders);
 					totals.sampled_pixels += query_stats.sampled_pixels;
 					totals.traced_rays += query_stats.traced_rays;
