@@ -1,0 +1,2 @@
+third_party/masked_occlusion_culling/** whitespace=-trailing-space
+*.sh text eol=lf

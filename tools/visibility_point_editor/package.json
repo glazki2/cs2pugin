@@ -1,0 +1,10 @@
+{
+	"name": "cs2fow-visibility-studio",
+	"private": true,
+	"type": "module",
+	"version": "1.0.0",
+	"dependencies": {
+		"@gltf-transform/cli": "4.4.1",
+		"three": "0.160.0"
+	}
+}

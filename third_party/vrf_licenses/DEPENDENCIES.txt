@@ -1,0 +1,79 @@
+ValveResourceFormat CLI redistribution inventory
+================================================
+
+Upstream release
+----------------
+
+ValveResourceFormat / Source2Viewer-CLI 19.2.6339, tag 19.2, commit
+c72208352f5bf62f1482447ed166c548f303f8fa.
+
+Official release assets used by CS2FOW:
+
+- cli-windows-x64.zip
+  SHA-256 53e7e8dac1ddd876078346de709c8dbe613a967e94cd0c969aa34c61ec07680d
+- cli-linux-x64.zip
+  SHA-256 30d86dfd72bf35c8a38015c81bd92f0b04b1f49304e73a5d734c875803b2685b
+
+The Windows package redistributes these upstream asset files:
+
+- Source2Viewer-CLI.exe
+- TinyEXRNative.dll
+- blake3_dotnet.dll
+- libSkiaSharp.dll
+- spirv-cross.dll
+
+The Linux package redistributes these upstream asset files:
+
+- Source2Viewer-CLI
+- libblake3_dotnet.so
+- libSkiaSharp.so
+- libspirv-cross.so
+
+The upstream libTinyEXRNative.so is deliberately removed from the Linux
+package. Source2Viewer-CLI is a self-contained .NET 10.0.8 single-file
+application; its embedded runtime is covered by dotnet-10.0.8.LICENSE and
+dotnet-10.0.8.THIRD-PARTY-NOTICES.
+
+Restored CLI package graph
+--------------------------
+
+This is the complete NuGet graph restored from the 19.2 source for win-x64.
+Packages that share one upstream project share its license file below.
+
+- Blake3 2.0.0: Blake3.LICENSE
+- ConsoleAppFramework 5.7.13: ConsoleAppFramework.LICENSE
+- K4os.Compression.LZ4 1.3.8: K4os.Compression.LZ4.LICENSE
+- KeyValues2 0.8.0: KeyValues2.COPYING
+- SharpGLTF.Core 1.0.6: SharpGLTF.LICENSE
+- SharpGLTF.Runtime 1.0.6: SharpGLTF.LICENSE
+- SharpGLTF.Toolkit 1.0.6: SharpGLTF.LICENSE
+- SkiaSharp 3.119.2: SkiaSharp.LICENSE and SkiaSharp.THIRD-PARTY-NOTICES
+- SkiaSharp.NativeAssets.Linux.NoDependencies 3.119.2: same SkiaSharp files
+- SkiaSharp.NativeAssets.Win32 3.119.2: same SkiaSharp files
+- SkiaSharp.NativeAssets.macOS 3.119.2: restored but not redistributed
+- System.IO.Hashing 10.0.5: dotnet-10.0.8.LICENSE and
+  dotnet-10.0.8.THIRD-PARTY-NOTICES
+- TinyBCSharp 0.1.2: TinyBCSharp.LICENSE
+- TinyEXR.NET 0.3.11: TinyEXR.NET.LICENSE
+- ValveKeyValue 0.70.0.499: ValveKeyValue.LICENSE
+- ValvePak 4.0.0.142: ValvePak.LICENSE
+- Vortice.SPIRV 1.0.5: Vortice.LICENSE
+- Vortice.SpirvCross 1.5.4: Vortice.LICENSE
+- ZstdSharp.Port 0.8.7: ZstdSharp.LICENSE
+
+Native and embedded notices
+---------------------------
+
+- BLAKE3 native code: included in Blake3.LICENSE.
+- Skia and its native dependencies: SkiaSharp.THIRD-PARTY-NOTICES.
+- SPIRV-Cross native code: SPIRV-Cross.LICENSE.
+- TinyEXR native code: TinyEXR.LICENSE and TinyEXR.NOTICE.
+- zlib used by TinyEXR: zlib.LICENSE.
+- zstd native code used by ZstdSharp: zstd.LICENSE.
+- Embedded Roboto subset: Roboto.NOTICE and the Apache 2.0 terms reproduced
+  in SPIRV-Cross.LICENSE.
+- ValveResourceFormat itself: ValveResourceFormat.LICENSE.
+
+The cgltf source compiled directly into cs2fow_baker is separate from the VRF
+CLI graph and is covered by ../cgltf.LICENSE in source packages and by
+licenses/cgltf.LICENSE in binary packages.

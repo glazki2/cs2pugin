@@ -1,0 +1,50 @@
+{
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+  "cmake.cmakePath": "D:/Programs/JetBrains/CLion/CLion 2026.1.3/bin/cmake/win/x64/bin/cmake.exe",
+  "cmake.buildDirectory": "${workspaceFolder}/build-windows-release",
+  "cmake.generator": "Ninja",
+  "cmake.configureSettings": {
+    "CMAKE_BUILD_TYPE": "Release"
+  },
+  "cmake.buildArgs": [
+    "--parallel"
+  ],
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/build-windows-release",
+    "--background-index",
+    "--completion-style=detailed",
+    "--header-insertion=never",
+    "--clang-tidy",
+    "-j=4"
+  ],
+  "editor.quickSuggestions": {
+    "other": "on",
+    "comments": "off",
+    "strings": "off"
+  },
+  "editor.quickSuggestionsDelay": 1,
+  "editor.suggestOnTriggerCharacters": true,
+  "editor.suggest.snippetsPreventQuickSuggestions": false,
+  "editor.acceptSuggestionOnEnter": "on",
+  "workbench.colorCustomizations": {
+    "symbolIcon.classForeground": "#FFC66D",
+    "symbolIcon.structForeground": "#FFC66D",
+    "symbolIcon.functionForeground": "#9876AA",
+    "symbolIcon.methodForeground": "#9876AA",
+    "symbolIcon.variableForeground": "#6897BB",
+    "symbolIcon.fieldForeground": "#9876AA",
+    "symbolIcon.propertyForeground": "#9876AA",
+    "symbolIcon.namespaceForeground": "#CC7832",
+    "symbolIcon.keywordForeground": "#CC7832",
+    "symbolIcon.enumForeground": "#9876AA",
+    "symbolIcon.enumMemberForeground": "#6897BB",
+    "symbolIcon.constantForeground": "#9876AA"
+  },
+  "editor.semanticHighlighting.enabled": true,
+  "editor.fontFamily": "'JetBrains Mono', 'Consolas', monospace",
+  "editor.fontLigatures": true,
+  "editor.semanticTokenColorCustomizations": {
+    "enabled": true
+  }
+}

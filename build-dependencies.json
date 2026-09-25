@@ -1,0 +1,43 @@
+{
+  "ambuild": {
+    "url": "https://github.com/alliedmodders/ambuild.git",
+    "commit": "d89ec91a7ac2607da07b50bb62346f9a10e9a998"
+  },
+  "metamod": {
+    "url": "https://github.com/alliedmodders/metamod-source.git",
+    "commit": "2667e8e5947237c4cb7ea45cec3913ad6a44757c"
+  },
+  "hl2sdk_manifests": {
+    "url": "https://github.com/alliedmodders/hl2sdk-manifests.git",
+    "commit": "20b3a014264b38908c4a5d4eb263ba2c488f3dc1"
+  },
+  "hl2sdk": {
+    "url": "https://github.com/alliedmodders/hl2sdk.git",
+    "commit": "159cddd44cef4d9d607ef4ec4ac9f85cf056494c"
+  },
+  "vrf": {
+    "version": "19.2",
+    "windows": {
+      "archive": "cli-windows-x64.zip",
+      "sha256": "53e7e8dac1ddd876078346de709c8dbe613a967e94cd0c969aa34c61ec07680d",
+      "files": [
+        "Source2Viewer-CLI.exe",
+        "TinyEXRNative.dll",
+        "blake3_dotnet.dll",
+        "libSkiaSharp.dll",
+        "spirv-cross.dll"
+      ]
+    },
+    "linux": {
+      "archive": "cli-linux-x64.zip",
+      "sha256": "30d86dfd72bf35c8a38015c81bd92f0b04b1f49304e73a5d734c875803b2685b",
+      "files": [
+        "Source2Viewer-CLI",
+        "libblake3_dotnet.so",
+        "libSkiaSharp.so",
+        "libspirv-cross.so"
+      ]
+    }
+  },
+  "steamrt3_image": "registry.gitlab.steamos.cloud/steamrt/sniper/sdk@sha256:2969e5a47146a6494c01d953cd818b1d62712f42f9e54c4809d7a3aa8dc276ce"
+}

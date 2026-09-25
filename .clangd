@@ -1,0 +1,17 @@
+CompileFlags:
+  Remove:
+    - "/WX"
+    - "-WX"
+    - "/experimental:deterministic"
+    - "-experimental:deterministic"
+
+  Add:
+    - "--target=x86_64-pc-windows-msvc"
+    - "-ferror-limit=0"
+    - "-fms-compatibility"
+    - "-fms-extensions"
+    - "-fdelayed-template-parsing"
+    - "-Wno-everything"
+
+Diagnostics:
+  Suppress: "*"

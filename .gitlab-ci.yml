@@ -1,0 +1,22 @@
+stages:
+  - build
+
+linux-x86_64:
+  stage: build
+  image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk@sha256:2969e5a47146a6494c01d953cd818b1d62712f42f9e54c4809d7a3aa8dc276ce
+  script:
+    - bash scripts/build-linux.sh --install-tools
+  artifacts:
+    paths:
+      - packages/cs2fow-*-linux-x86_64.zip
+      - packages/SHA256SUMS.txt
+    expire_in: 1 week
+
+studio:
+  stage: build
+  image: node:22-bookworm-slim
+  before_script:
+    - apt-get update
+    - apt-get install -y python3
+  script:
+    - python3 scripts/check_studio.py

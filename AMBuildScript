@@ -1,0 +1,34 @@
+# Resolves pinned SDK/reference directories and hands one x86-64 compiler setup
+# to AMBuilder. Missing dependencies stop configuration instead of guessing.
+
+import os
+
+def source_path(path):
+  return os.path.abspath(path if os.path.isabs(path) else os.path.join(builder.sourcePath, path))
+
+mms_root = source_path(builder.options.mms_path)
+manifest_root = source_path(builder.options.hl2sdk_manifests)
+sdk_root = source_path(builder.options.hl2sdk_root)
+
+SdkHelpers = builder.Eval(os.path.join(manifest_root, 'SdkHelpers.ambuild'), {'Project': 'metamod'})
+cxx = builder.DetectCxx(target_arch='x86_64')
+if not cxx:
+  raise Exception('No suitable C/C++ compiler was found.')
+
+def find_sdk_path(name):
+  path = os.path.join(sdk_root, 'hl2sdk-' + name)
+  return path if os.path.isdir(path) else None
+
+SdkHelpers.find_sdk_path = find_sdk_path
+SdkHelpers.findSdks(builder, [cxx], ['cs2'])
+
+class Config:
+  pass
+
+config = Config()
+config.cxx = cxx
+config.sdk_target = SdkHelpers.sdk_targets[0]
+config.sdk_manifests = SdkHelpers.sdk_manifests
+config.mms_root = mms_root
+config.SdkHelpers = SdkHelpers
+builder.Build(['AMBuilder'], {'config': config})

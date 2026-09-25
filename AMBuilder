@@ -1,0 +1,121 @@
+# Defines exactly which project and pinned SDK sources enter each build target.
+# AMBuild supplies the compilers; this file outputs three platform build targets.
+
+import os
+
+root = builder.sourcePath
+sdk = config.sdk_target.sdk
+with open(os.path.join(root, 'VERSION'), encoding='utf-8') as version_file:
+  version = version_file.read().strip()
+
+def configure(compiler, plugin=False):
+  compiler.cxxincludes += [
+    os.path.join(root, 'src', 'core'),
+    os.path.join(root, 'src', 'baker'),
+  os.path.join(root, 'third_party'),
+  os.path.join(root, 'third_party', 'generated'),
+  ]
+  if compiler.behavior == 'msvc':
+    compiler.cflags += ['/W4', '/std:c++20', '/EHsc', '/permissive-']
+    compiler.cflags += ['/MTd'] if builder.options.debug else ['/MT']
+    compiler.defines += ['_CRT_SECURE_NO_WARNINGS', 'NOMINMAX']
+  else:
+    compiler.cflags += ['-Wall', '-Wextra', '-Wpedantic', '-pthread', '-msse4.1', '-fno-strict-aliasing']
+    compiler.linkflags += ['-pthread']
+    compiler.cxxflags += ['-std=c++20']
+    if plugin:
+      compiler.defines += ['stricmp=strcasecmp', '_stricmp=strcasecmp', '_snprintf=snprintf', '_vsnprintf=vsnprintf', 'HAVE_STDINT_H', 'GNUC']
+      compiler.cflags += ['-fPIC', '-fvisibility=hidden']
+      compiler.cxxflags += ['-fvisibility-inlines-hidden']
+      compiler.linkflags += ['-ldl']
+  if builder.options.debug:
+    compiler.defines += ['DEBUG', '_DEBUG']
+    compiler.cflags += ['/Od'] if compiler.behavior == 'msvc' else ['-O0', '-g3']
+  else:
+    compiler.defines += ['NDEBUG']
+    compiler.cflags += ['/O2'] if compiler.behavior == 'msvc' else ['-O3']
+
+geometry = [
+  os.path.join(root, 'src', 'core', 'bvh8.cpp'),
+  os.path.join(root, 'src', 'core', 'bvh8_format.cpp'),
+  os.path.join(root, 'src', 'core', 'builder.cpp'),
+]
+
+map_io = [
+  os.path.join(root, 'src', 'core', 'map_source.cpp'),
+  os.path.join(root, 'src', 'core', 'vpk.cpp'),
+]
+
+baker = config.cxx.Program('cs2fow_baker')
+configure(baker.compiler)
+baker.sources += geometry + map_io + [
+  os.path.join(root, 'src', 'core', 'subprocess.cpp'),
+  os.path.join(root, 'src', 'baker', 'glb_import.cpp'),
+  os.path.join(root, 'src', 'baker', 'main.cpp'),
+]
+builder.Add(baker)
+
+tests = config.cxx.Program('cs2fow_tests')
+configure(tests.compiler)
+tests.compiler.cxxincludes += [os.path.join(root, 'src', 'plugin')]
+if 'NDEBUG' in tests.compiler.defines:
+  tests.compiler.defines.remove('NDEBUG')
+tests.sources += geometry + map_io + [
+  os.path.join(root, 'third_party', 'masked_occlusion_culling', 'MaskedOcclusionCulling.cpp'),
+  os.path.join(root, 'src', 'core', 'subprocess.cpp'),
+  os.path.join(root, 'src', 'core', 'capsule_visibility.cpp'),
+  os.path.join(root, 'src', 'core', 'masked_occlusion_stubs.cpp'),
+  os.path.join(root, 'src', 'core', 'smoke_occlusion.cpp'),
+  os.path.join(root, 'src', 'core', 'visibility_sampling.cpp'),
+  os.path.join(root, 'src', 'baker', 'glb_import.cpp'),
+  os.path.join(root, 'src', 'plugin', 'visibility_worker.cpp'),
+  os.path.join(root, 'tests', 'map_and_bvh_tests.cpp'),
+  os.path.join(root, 'tests', 'structure_tests.cpp'),
+  os.path.join(root, 'tests', 'test_main.cpp'),
+  os.path.join(root, 'tests', 'visibility_and_transmit_tests.cpp'),
+]
+builder.Add(tests)
+
+plugin = config.cxx.Library('cs2fow')
+configure(plugin.compiler, True)
+plugin.compiler.cxxincludes += [
+  os.path.join(root, 'src', 'plugin'),
+  os.path.join(config.mms_root, 'core'),
+  os.path.join(config.mms_root, 'core', 'sourcehook'),
+  os.path.join(sdk['path'], 'public', 'entity2'),
+]
+for manifest in config.sdk_manifests:
+  plugin.compiler.defines += ['SE_{}={}'.format(manifest['define'], manifest['code'])]
+plugin.compiler.defines += ['META_IS_SOURCE2', 'CS2FOW_VERSION="{}"'.format(version)]
+plugin.compiler.defines += ['MINIZ_NO_ARCHIVE_WRITING_APIS', 'MINIZ_NO_ZLIB_APIS']
+config.SdkHelpers.configureCxx(builder, plugin, sdk)
+plugin.sources += [
+  os.path.join(root, 'third_party', 'miniz.c'),
+  os.path.join(root, 'third_party', 'masked_occlusion_culling', 'MaskedOcclusionCulling.cpp'),
+  os.path.join(root, 'src', 'core', 'bvh8.cpp'),
+  os.path.join(root, 'src', 'core', 'bvh8_format.cpp'),
+  os.path.join(root, 'src', 'core', 'capsule_visibility.cpp'),
+  os.path.join(root, 'src', 'core', 'masked_occlusion_stubs.cpp'),
+  os.path.join(root, 'src', 'core', 'map_source.cpp'),
+  os.path.join(root, 'src', 'core', 'subprocess.cpp'),
+  os.path.join(root, 'src', 'core', 'smoke_occlusion.cpp'),
+  os.path.join(root, 'src', 'core', 'visibility_sampling.cpp'),
+  os.path.join(root, 'src', 'core', 'vpk.cpp'),
+  os.path.join(root, 'src', 'plugin', 'automatic_baker.cpp'),
+  os.path.join(root, 'src', 'plugin', 'game_state.cpp'),
+  os.path.join(root, 'src', 'plugin', 'plugin.cpp'),
+  os.path.join(root, 'src', 'plugin', 'runtime_compatibility.cpp'),
+  os.path.join(root, 'src', 'plugin', 'settings.cpp'),
+  os.path.join(root, 'src', 'plugin', 'transmit.cpp'),
+  os.path.join(root, 'src', 'plugin', 'updater.cpp'),
+  os.path.join(root, 'src', 'plugin', 'visibility_worker.cpp'),
+  os.path.join(sdk['path'], 'tier1', 'convar.cpp'),
+  os.path.join(sdk['path'], 'public', 'tier0', 'memoverride.cpp'),
+]
+if plugin.compiler.behavior == 'msvc':
+  plugin.compiler.postlink += [
+    os.path.join(sdk['path'], 'lib', 'public', 'win64', 'steam_api64.lib'),
+    'delayimp.lib',
+  ]
+  plugin.compiler.linkflags += ['/DELAYLOAD:steam_api64.dll']
+builder.Add(plugin)
