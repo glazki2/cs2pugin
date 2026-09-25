@@ -1,362 +1,167 @@
-<div align="center">
+# Анти-WH для CS2 (на базе CS2FOW)
 
-<img src="docs/cs2fow-logo.png" width="760" alt="CS2FOW">
+Серверный плагин против wallhack для Counter-Strike 2. Если враг полностью закрыт стеной
+(а в полном режиме — ещё и смоком), сервер просто не отправляет игроку данные об этом враге.
+Чит не может нарисовать то, чего клиент не получил. Игрокам ничего ставить не нужно.
 
-### Server-side anti-wallhack for Counter-Strike 2 community servers
+- Язык: **C++** (плагин Metamod:Source). C# и .NET не используются нигде — ни в плагине,
+  ни в утилите подготовки карт.
+- Основа: [CS2FOW Community Edition 0.3.8](https://gitlab.com/Artemon0/cs2fow-ce)
+  (MIT, автор оригинала — karola3vax), доработанная в этом репозитории до версии **0.4.0**.
+- Принцип безопасности — **fail-open**: при любой неясности плагин показывает всех,
+  а не прячет лишнее.
 
-[![Protection](https://img.shields.io/badge/protection-Walls%20%7C%20Smoke-6f42c1?style=for-the-badge)](#the-protection-boundary)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-5c7cfa?style=for-the-badge)](#quickstart)
-[![License](https://img.shields.io/badge/license-MIT-2ea44f?style=for-the-badge)](LICENSE)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-Support_Development-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=000000)](https://buymeacoffee.com/karola3vax)
+## Что изменено относительно cs2fow-ce
 
-**A wallhack cannot draw a player your server never sent.**
+| Проблема в cs2fow-ce | Что сделано |
+| --- | --- |
+| Metamod с 8 сентября 2026 убрал SourceHook и не загружает старые плагины | Хуки переписаны на KHook (Metamod API 18) |
+| Собран на старом HL2SDK; в сентябрьском обновлении CS2 поменялись ConVar, IFileSystem, CGlobalVars | Сборка на свежих HL2SDK/Metamod |
+| gamedata подходит только к CS2 1.41.7.4, на текущей версии плагин просто выключается | **Ограниченный режим**: на неизвестной сборке CS2 работает защита стенами без приватных адресов |
+| Для подготовки карт запускался ValveResourceFormat — программа на C#/.NET | Свой C++-читатель физики карт (KV3 + LZ4 + Zstandard), .NET удалён полностью |
+| Автообновление скачивало бинарники из удалённого репозитория karola3vax | Выключено по умолчанию; если включить — смотрит только релизы этого репозитория |
 
-CS2FOW stops your server from sending an enemy's live position when walls or smoke completely hide them. It runs entirely on the server, players install nothing, and uncertain visibility stays visible.
+Подробности — в [CHANGELOG.md](CHANGELOG.md).
 
-[Watch it work](#showcase) · [Install](#quickstart) · [Learn how it works](#how-it-works) · [Pair it with CS2AC](#cs2fow-and-cs2ac)
+## Два режима защиты
 
-</div>
+`cs2fow_status` в строке `Game build:` показывает, какой режим работает.
 
-## Showcase
+| | Полный режим | Ограниченный режим (по умолчанию на текущем CS2) |
+| --- | --- | --- |
+| Когда | Бинарник сервера совпадает с проверенной gamedata | Любая другая сборка CS2 |
+| Стены | Да | Да |
+| Смоки и дыры от HE | Да | **Нет** — за смоком враг виден |
+| Форма тела врага | 19 анимированных капсул хитбоксов | 9 вертикальных капсул, гарантированно покрывающих хитбокс игрока |
+| Приватные функции и адреса из gamedata | Используются | **Не используются** |
 
-Every map gets a lightweight 3D copy of its solid walls. CS2FOW uses that copy to check who can actually see whom.
+Ограниченный режим прячет немного реже, чем полный, потому что его форма тела крупнее.
+Зато он не зависит от адресов, которые ломаются при каждом патче CS2. Перед включением он
+проверяет, что система сущностей найдена правильно. Если структура данных `CheckTransmit`
+выглядит подозрительно, плагин выключает фильтрацию до смены карты.
 
-<table>
-<tr>
-<td width="50%" align="center">
-<img src="docs/ancient.gif" width="100%" alt="CS2FOW hiding players behind solid map geometry on Ancient"><br>
-<strong>Ancient &mdash; A site</strong>
-</td>
-<td width="50%" align="center">
-<img src="docs/smokeandhegrenade.gif" width="100%" alt="CS2FOW hiding players behind smoke and revealing them through an HE-cleared opening"><br>
-<strong>Smoke &mdash; HE-cleared opening</strong>
-</td>
-</tr>
-<tr>
-<td width="50%" align="center">
-<img src="docs/cache.gif" width="100%" alt="CS2FOW operating around the Cache A site"><br>
-<strong>Cache &mdash; A site</strong>
-</td>
-<td width="50%" align="center">
-<img src="docs/dust2b.gif" width="100%" alt="CS2FOW operating around the Dust II B site"><br>
-<strong>Dust II — B site</strong>
-</td>
-</tr>
-<tr>
-<td width="50%" align="center">
-<img src="docs/dust2long.gif" width="100%" alt="CS2FOW operating across Dust II long sightlines"><br>
-<strong>Dust II — Long</strong>
-</td>
-<td width="50%" align="center">
-<img src="docs/mirageaside.gif" width="100%" alt="CS2FOW operating around the Mirage A site"><br>
-<strong>Mirage &mdash; A site</strong>
-</td>
-</tr>
-</table>
+Выключить ограниченный режим можно командой `cs2fow_limited_mode 0`. Тогда на неизвестной
+сборке CS2 плагин ничего не прячет, как было в оригинале.
 
-### CS2FOW and CS2AC
+## Требования
 
-<div align="center">
+- Выделенный сервер CS2 на **Linux x64** или Windows x64.
+- **Metamod:Source 2.0 не старше сборки от 8 сентября 2026** (с KHook, plugin API 18).
+  Проверьте командой `meta version`. Если Metamod старее, плагин не загрузится.
+  Обновите Metamod со страницы сборок https://www.sourcemm.net/downloads.php?branch=dev.
+- Процессор с AVX (для VPS проверьте, что AVX проброшен в виртуальную машину).
 
-<a href="https://github.com/karola3vax/CS2AC">
-<img src="docs/cs2ac-logo.png" width="760" alt="CS2AC">
-</a>
+## Установка на Linux-сервер
 
-**CS2FOW hides unseen positions. CS2AC detects cheating behavior.**
+1. Скачайте архив `cs2fow-0.4.0-linux-x86_64.zip`. Пока нет релиза, его можно взять из
+   GitHub Actions этого репозитория: вкладка **Actions** → последний успешный запуск
+   `build` → артефакт `cs2fow-linux-x86_64`. Внутри артефакта лежит сам zip.
+2. Распакуйте zip прямо в папку `game/csgo` сервера. В архиве лежат папки `addons`,
+   `cfg` и `tools`, их не нужно переставлять.
+3. Проверьте права: `chmod +x game/csgo/tools/cs2fow_baker`.
+4. Запустите сервер и загрузите карту.
+5. В консоли сервера выполните:
+   ```
+   meta list
+   cs2fow_status
+   ```
+   В `meta list` должен быть `CS2FOW`. В `cs2fow_status` на актуальном CS2 ожидается строка
+   `Game build: unverified; limited mode (walls only, hull-shaped body, smoke off)`.
 
-<sub>They solve different problems, run entirely on the server, and can protect the same CS2 community server together.</sub>
+При первой загрузке карты плагин в фоне готовит «запечённую» копию стен карты. Статус в
+это время — `automatic bake in progress`, и все игроки видны. Бейк обычно занимает от
+нескольких секунд до минуты. Готовые файлы лежат в `addons/cs2fow/data/maps/`.
 
-</div>
-
-## Quickstart
-
-You need a Windows x64 or Linux x64 CS2 dedicated server running [Metamod:Source](https://www.sourcemm.net/) 2.x, the plugin loader that lets CS2 load server extensions. Your CPU must support AVX, a common instruction set CS2FOW uses for fast geometry calculations.
-
-1. Open this repository's **Releases** tab and choose the matching Windows or Linux package.
-2. Extract it directly into the server's `game/csgo` folder without rearranging anything. The package begins with the `addons`, `cfg`, and `tools` folders.
-3. Start the server and load a map.
-4. Run `meta list`, then `cs2fow_status`.
-
-That is it. Players install nothing.
-
-The first time you load a map, `cs2fow_status` may say that an automatic bake is running. A bake is the one-time step that turns the map's solid walls into fast visibility data. Everyone stays visible until it finishes and passes its checks. The optional official-maps ZIP includes ready-made data, so those maps skip this first wait.
-
-CS2FOW uses a compatibility file called gamedata to locate the exact parts of the CS2 server program it needs. Before using it, the plugin confirms the program by file size and CRC32, a checksum that acts like a digital fingerprint. If Valve ships an unknown update, CS2FOW stays off until matching gamedata is installed rather than guessing inside server memory.
-
-CS2FOW checks GitHub's stable releases for updates after startup and every six hours. It downloads only the package for the server's operating system, verifies GitHub's SHA-256 checksum and CS2FOW's release manifest, and refuses packages that do not explicitly support the server's current binary fingerprint. A verified update is prepared in the background and installed on the next full server restart; the running installation is never hot-swapped. Set `cs2fow_auto_update 0` and run `cs2fow_reload` to disable future checks. An update prepared before this was disabled may still install on the next restart.
-
-## The protection boundary
-
-CS2FOW keeps its hands off as much of the game as possible. It hides only this small visual group:
-
-- the player pawn, which is the in-game entity representing a living player;
-- active, last, and carried weapons, including the carried C4 bomb;
-- wearable items, such as gloves and equipment attached to the model;
-- the visible hostage model currently carried by the player.
-
-Everything that matters on its own stays on its own. A planted C4 bomb, dropped objective, dropped weapon, flying grenade, burning Molotov fire, sound, or unknown game object does not disappear just because the player who once owned it is hidden. Your server still controls movement, collisions, whether bullets hit, damage through walls, and game rules exactly as before.
-
-CS2FOW does not filter HLTV, Valve's built-in match broadcast system, or spectators, dead players, and your own player. Teammates stay visible by default. Free-for-all (FFA) mode is detected automatically through `mp_teammates_are_enemies`; when it is `1`, every other living player is treated as an enemy. You can also set `cs2fow_filter_teammates 1` to apply the same check to teammates in normal team modes, which can remove their on-screen markers and radar information while hidden.
-
-Live smoke can block those imaginary sight lines too. By default, a high-explosive (HE) grenade opens a viewing channel 100 game units wide through affected smoke for 2.5 seconds, but only if the smoke was already there when the grenade exploded. A wall still wins, and another overlapping smoke can still block the view.
-
-## How it works
-
-1. **Load the map:** CS2FOW finds the installed map's VPK archive, the game file containing the map data, and reads its physics data, which describes the collision shapes of solid surfaces.
-2. **Bake the walls:** the baker turns thousands of collision triangles, the small flat pieces that describe solid surfaces, into a compact search index called a BVH8. This lets CS2FOW skip most walls and quickly find the few that could block a view.
-3. **Take a picture:** on CS2's main game thread, where live game state is safe to read, CS2FOW copies each player's current pose. CS2 stores that pose as bones, which position the animated model, and nineteen hitbox capsules, which are rounded cylinders fitted around the body. CS2FOW copies those capsules together with the player's position, size, movement buttons, view direction, ping, and held weapon. This frozen copy is called a snapshot. If it is incomplete or untrustworthy, the player stays visible.
-4. **Test the whole body:** after honoring any short hold that keeps a recently seen player visible, the background worker compares the three-dimensional outline of all nineteen capsules with the baked walls and live smoke.
-5. **Try forgiving fallbacks:** only when the full body is blocked, the worker checks eight padded corners of the player's axis-aligned bounding box (AABB), the simple rectangular box around the player, and then the held weapon's muzzle.
-6. **Choose visible or hidden:** any clear part of the body or fallback point shows the whole player. Missing data, uncertainty smaller than one screen pixel, or a check that runs out of its allowed time also shows the player rather than risking an incorrect hide.
-7. **Control the outgoing update:** before CS2 sends its next network update, a function named `CheckTransmit` builds the list of game entities—objects such as players and weapons—each player should receive. CS2FOW marks every verified hidden entity as `dont_transmit`, meaning "do not send," in both of Valve's matching network lists.
-
-The worker gets a copy of the numbers, never live CS2 objects. In other words, it reads a photograph instead of reaching back into the moving game.
-
-### Baked map geometry
-
-<table>
-<tr>
-<td width="52%">
-<p>The baker strips the map's fixed collision geometry down to the walls CS2FOW needs for sight checks. Before using the result, the plugin validates the BVH8 file, the source map's fingerprint (file size and CRC checksum), and the bake report.</p>
-<p>Your server can bake installed maps automatically. You can also prepare public Workshop maps through the <a href="https://cs2fow-bake-service.onrender.com/">CS2FOW Map Baker</a>.</p>
-</td>
-<td width="48%" align="center">
-<img src="docs/scan_cbbl.png" width="100%" alt="Static cobblestone collision mesh used by CS2FOW">
-</td>
-</tr>
-</table>
-
-## Configuration
-
-The plugin runs `cfg/cs2fow.cfg` when it loads and again before the background visibility worker starts for each map. Configuration is all-or-nothing: the previous known-good settings remain active until the final `cs2fow_config_loaded` line confirms that the whole file ran. An interrupted file, missing confirmation line, or five-second timeout restores the previous settings; an initial failure keeps the built-in defaults. Do not remove or move that final line.
-
-Use `cs2fow_status` as the short dashboard. It reports the health state, configuration, map, enabled protection, player count, number of viewer-to-target pairs being checked, the time taken by the slowest 1% of recent worker checks (p99), snapshot age, and one next action when intervention is needed. Use `cs2fow_metrics` for the complete performance and activity counters.
-
-```text
-cs2fow_help           list administrator commands
-cs2fow_status         show concise health and protection state
-cs2fow_metrics        show complete performance and activity counters
-cs2fow_reload         safely reload all settings or keep the previous ones
-cs2fow_check_config   explain settings that deserve attention
-cs2fow_check_update   check for a new version without waiting
+Вручную карту можно подготовить так (из папки `game/csgo`):
+```
+./tools/cs2fow_baker --game ../.. --map de_dust2 --output addons/cs2fow/data/maps/de_dust2.bvh8
 ```
 
-Direct console changes still work immediately. A successful reload applies changes that are safe while a map is running; `cs2fow_worker_threads` starts on the next map, and status shows both the configured and currently running worker counts until then. Out of the box, wall and smoke filtering and automatic updates are on, while teammate filtering is off. Valve's `sv_enable_donttransmit` setting controls how CS2 marks network entities that should not be sent; CS2FOW uses the safer compatibility mode `0` by default and also supports mode `1`.
+## Основные настройки (`cfg/cs2fow.cfg`)
 
-If you need to see exactly which game objects CS2FOW removed from outgoing network updates:
-
-```text
-cs2fow_debug 1              start silent evidence collection
-cs2fow_entity               list buffered records, newest first
-cs2fow_entity <index>       show records for one game entity index
-cs2fow_entity clear         clear the evidence buffer
-```
-
-The debug buffer is a small history kept in server memory. It records only game entities CS2FOW actually removed from an outgoing network update. Turning debug off stops collecting new evidence, but keeps what is already there until a reset or you clear it.
-
-<details>
-<summary><strong>Complete configuration reference</strong></summary>
-
-| Setting | Default | Meaning |
+| Переменная | По умолчанию | Что делает |
 | --- | ---: | --- |
-| `sv_enable_donttransmit` | `0` | Choose how CS2 marks network entities that should not be sent. CS2FOW supports both modes and defaults to the safer compatibility mode. |
-| `mp_playerid` | `1` | Show target IDs for teammates only, preventing enemy names from appearing over a hidden player's stale client position. |
-| `cs2fow_auto_update` | `1` | Download verified compatible stable updates from GitHub Releases and install them on the next full server restart. |
-| `cs2fow_enable` | `1` | Turn filtering on whenever all required data passes its safety checks. |
-| `cs2fow_smoke_occlusion` | `1` | Let live smoke block sight. If CS2FOW cannot safely read the smoke data, smoke steps aside while wall protection keeps working. |
-| `cs2fow_he_clear_radius_units` | `100` | Set how wide an HE-opened viewing channel is. Use `0` to turn HE clearing off. |
-| `cs2fow_he_clear_seconds` | `2.5` | Set how long an HE-opened viewing channel lasts. Use `0` to turn HE clearing off. |
-| `cs2fow_filter_teammates` | `0` | Give living teammates the same visibility checks as enemies. FFA mode is detected automatically. |
-| `cs2fow_update_interval_ms` | `1` | Wait at least this many milliseconds before sending another picture of the players to the worker. |
-| `cs2fow_worker_threads` | `2` | Background visibility workers, from 1 to 4. Changes apply the next time a map loads. |
-| `cs2fow_shoulder_base_units` | `64` | Start moving/peeking shoulder and movement-intention points this far from the player's eye; idle shoulders use half this distance. |
-| `cs2fow_shoulder_rtt_scale` | `0.64` | Add this many units per millisecond of round-trip time (RTT), commonly called ping, updated in 25 ms steps. The default table adds 16 units every 25 ms. |
-| `cs2fow_max_shoulder_units` | `0` | Maximum shoulder distance. `0` means the RTT table has no maximum; set a positive value only if you want a cap. |
-| `cs2fow_visibility_hold_ms` | `1000` | Once a player becomes visible, keep them visible for about one second to cover brief line-of-sight gaps and prevent flicker. |
-| `cs2fow_debug` | `0` | Save evidence about game objects CS2FOW actually removed from outgoing updates. It does not spam the console. |
-| `cs2fow_debug_los_player` | `0` | Temporarily draw one player's line-of-sight (LOS) checks: rounded body capsules, weapon muzzle, and rectangular AABB corners. Player slots are numbered from `1`. Keep `0` during normal play. |
+| `cs2fow_enable` | `1` | Главный выключатель |
+| `cs2fow_limited_mode` | `1` | Разрешить защиту стенами на непроверенной сборке CS2 (действует со следующей карты) |
+| `cs2fow_filter_teammates` | `0` | Прятать и тиммейтов тоже. В FFA (`mp_teammates_are_enemies 1`) все считаются врагами автоматически |
+| `cs2fow_visibility_hold_ms` | `1000` | Сколько миллисекунд держать игрока видимым после того, как его увидели (против мерцания) |
+| `cs2fow_shoulder_base_units` | `64` | На сколько юнитов «выглядывают плечи» зрителя при расчёте (против появления врага из воздуха за углом) |
+| `cs2fow_shoulder_rtt_scale` | `0.64` | Дополнительный запас на пинг, юнитов на миллисекунду |
+| `cs2fow_worker_threads` | `2` | Потоки расчёта видимости (1–4), действует со следующей карты |
+| `cs2fow_auto_update` | `0` | Автообновление из релизов этого репозитория |
 
-If you are keeping an older custom config, copy the commented `0.3.5` file and reapply your values. The internal `cs2fow_config_loaded` command must be the last command or CS2FOW will reject and roll back the file. Automatic updates merge known settings into the new commented layout and keep one pre-update configuration backup.
+После правки файла выполните `cs2fow_reload`. Последняя строка `cs2fow_config_loaded` в
+файле обязательна.
 
-Automatic baking needs permission to write into `addons/cs2fow/data/maps`. On Linux, the packaged baker and ValveResourceFormat (VRF), the tool that reads map files, must also remain executable.
+Команды: `cs2fow_status`, `cs2fow_metrics`, `cs2fow_check_config`, `cs2fow_help`,
+`cs2fow_entity` (журнал того, что плагин реально спрятал, при `cs2fow_debug 1`).
 
-</details>
+## Проверка на своём сервере
 
-## FAQ
+Из облачной среды разработки я не мог запустить CS2, поэтому поведение в игре нужно
+проверить у вас. Проверяйте минимум с двумя реальными игроками: боты не получают сетевые
+пакеты, и на них клиентские краши не воспроизводятся.
 
-<details>
-<summary><strong>What is CS2FOW?</strong></summary>
+**Загрузка**
+- [ ] `meta list` показывает CS2FOW, в консоли нет ошибок при загрузке.
+- [ ] `cs2fow_status` показывает `Game build: … limited mode`, а после бейка — `Protection: walls=on`.
+- [ ] `meta unload` / `meta load` плагина посреди раунда: сервер не падает.
+- [ ] `changelevel` 5–10 раз подряд, в том числе во время бейка.
 
-CS2FOW is an anti-wallhack plugin for Counter-Strike 2 community servers. If walls or live smoke completely hide a living player, your server can stop sending that player's live visuals to the opponent who cannot see them.
+**Краши клиента (главное)**
+- [ ] Спрятанный враг умирает рядом с вами: от пули, ножа, HE, молотова, падения, бомбы, `kill`.
+- [ ] Спрятанный враг выходит с сервера или его кикают.
+- [ ] Спрятанный враг бросает гранату, подбирает или выбрасывает оружие, несёт бомбу.
+- [ ] Вас убивают из-за стены (прострел), камера смерти смотрит на убийцу.
+- [ ] Наблюдение за тиммейтом после смерти, быстрое переключение целей, свободная камера.
+- [ ] `tv_enable 1` и запись демо, потом просмотр демо.
 
-It is not a filter drawn over the screen. Everything happens on your server.
+**Геймплей**
+- [ ] Враг за стеной не виден через `cs2fow_debug 1` → `cs2fow_entity`, но появляется
+      вовремя при выходе из-за угла (нет «появления из воздуха»).
+- [ ] Проверка с пингом 80–150 мс.
+- [ ] Карты: Dust II, Mirage, Inferno, Nuke, Ancient, Anubis + одна workshop-карта.
 
-</details>
+**Производительность**
+- [ ] `cs2fow_metrics` на полном сервере: время `transmit` и `worker p99`.
 
-<details>
-<summary><strong>Does it work in Premier or Valve matchmaking?</strong></summary>
+Если что-то пойдёт не так, пришлите вывод `cs2fow_status`, `cs2fow_metrics`, `meta version`,
+кусок лога сервера и описание того, что делали игроки.
 
-No. You need a community or dedicated server running Metamod:Source, the plugin loader used by CS2 community servers. Only Valve could add something similar to official matchmaking.
+### Сверка нового читателя карт (необязательно)
 
-</details>
+Новый C++-читатель проверен на тестовых файлах ValveResourceFormat: 181 из 181 блока KV3 и
+9 из 9 моделей совпали с результатом VRF. Сверить его на настоящих картах можно так: один
+раз экспортируйте физику карты любым инструментом в GLB и запустите бейкер с
+`--compare-glb путь/к/world_physics_physics.glb`. Бейкер остановится с ошибкой, если число
+треугольников или группы поверхностей разойдутся.
 
-<details>
-<summary><strong>Do players install anything or risk a Valve Anti-Cheat (VAC) ban?</strong></summary>
+## Ограничения
 
-Nothing. Players join your server like normal. CS2FOW does not modify, inject into, or even run inside their CS2 client.
+- Звуки шагов и выстрелов не скрываются, так что «sound ESP» остаётся.
+- Двери, разрушаемые объекты и движущиеся пропсы не считаются стенами.
+- Враги у самой кромки видимости передаются заранее (запас на пинг и выглядывание).
+- В ограниченном режиме смок не прячет.
+- Аимбот по видимым целям плагин не ловит. Для этого нужен поведенческий античит.
+- Работает только на community/выделенных серверах с Metamod, не в матчмейкинге.
 
-</details>
+## Сборка из исходников
 
-<details>
-<summary><strong>Can a cheat bypass it?</strong></summary>
-
-A cheat cannot read an exact live enemy position if your server never included it in the network update. It can still listen for sounds, use teammate information, remember the last known position, or guess a common place to fire before seeing someone. CS2FOW cuts off the main source used by wallhacks; it does not make every kind of cheating impossible.
-
-</details>
-
-<details>
-<summary><strong>What exactly gets hidden?</strong></summary>
-
-CS2FOW hides only the known visuals that travel with a living player: the player model, carried weapons, wearables, and a hostage they are currently carrying. Anything unknown or independent stays visible.
-
-You always receive yourself, dead players, spectators, and HLTV, Valve's built-in match broadcast system. Teammates also stay visible by default, but you can choose to apply the same visibility check to living teammates.
-
-</details>
-
-<details>
-<summary><strong>Can players still wallbang a hidden enemy?</strong></summary>
-
-Yes. Hidden does not mean deleted. The player is still fully present on your server, so movement, hit registration, bullet penetration, damage, and game rules keep working normally.
-
-</details>
-
-<details>
-<summary><strong>Does it block radar cheats or sound ESP?</strong></summary>
-
-It helps against radar cheats that need live enemy positions. Sound ESP is a cheat that turns audible clues into extra warnings or displays; CS2FOW does not silence footsteps or gunshots. It also does not hide bomb information, remove teammate knowledge, or erase every other clue the game provides.
-
-</details>
-
-<details>
-<summary><strong>What about smokes, doors, breakables, and moving props?</strong></summary>
-
-Smoke blocks sight too. CS2FOW copies the game's live smoke shape, which is stored as a 3D grid of tiny boxes called voxels. That lets it follow changing edges, overlapping smokes, growth, fading, and holes opened by grenades.
-
-Doors, breakable objects, and moving props do not block CS2FOW yet. The baked map is a frozen copy of solid map geometry, so it only knows about walls that stay put.
-
-</details>
-
-<details>
-<summary><strong>How does it avoid enemies appearing too late around corners?</strong></summary>
-
-CS2FOW first checks Valve's nineteen animated hitbox capsules, rounded cylinders fitted around the player's body, as one complete three-dimensional shape. If that full shape is blocked, eight padded corners around the player's rectangular collision box and the held weapon's muzzle provide forgiving fallbacks. It looks from your eye, shoulders, above your eye, and feet. While idle, both shoulders use half the configured base. A movement key activates the matching shoulder: A enlarges the left shoulder and D enlarges the right; W/S leave both shoulders at the idle distance and only add the forward/back movement-origin check. Diagonal movement enlarges the matching A/D shoulder and also adds that movement-origin check. Every state adds 16 units every 25 ms of recipient ping, with no maximum cap. Origins stop at baked walls, and a short visibility hold prevents flicker.
-
-As soon as the background worker finds a clear view again, CS2FOW lets the player's next normal update through.
-
-</details>
-
-<details>
-<summary><strong>Does it slow the server by checking every wall during every update?</strong></summary>
-
-No. The baker turns the map's walls into a small search index called a BVH8, which lets CS2FOW skip most walls and quickly find possible blockers. A background worker draws imaginary sight lines through that data. When CS2 decides what to send over the network, its `CheckTransmit` function only picks up the finished visible-or-hidden answer.
-
-</details>
-
-<details>
-<summary><strong>Do custom and Workshop maps work?</strong></summary>
-
-Yes, as long as the map contains usable physics data. Your server can prepare an installed map automatically. For a public Workshop item, the [CS2FOW Map Baker](https://cs2fow-bake-service.onrender.com/) can give you a ready-to-use `.bvh8` wall index and its `.json` verification report.
-
-</details>
-
-<details>
-<summary><strong>What happens when a map changes?</strong></summary>
-
-CS2FOW checks the map file's fingerprint—its file size and CRC checksum—against the saved bake. If they do not match, it rejects the old data and keeps everyone visible. The automatic baker can then make a fresh copy.
-
-</details>
-
-<details>
-<summary><strong>What does "fail open" mean?</strong></summary>
-
-It means CS2FOW would rather show too much than hide the wrong player. If something is missing, old, or uncertain, your server sends the player normally.
-
-</details>
-
-## Honest limits
-
-- Baked walls and live smoke can block sight. Doors, breakable objects, moving props, particles, projectiles, and other moving things cannot.
-- CS2FOW uses the movement keys currently pressed rather than guessing future player positions. A fast target peeking a stationary player may still appear late.
-- Extra compensation for network delay reduces corner pop-in by moving shoulder and movement-direction checks farther around corners. Smoother peeks cost a little more hidden-position information.
-- The feet point can see through low gaps that the player's eyes cannot. It is intentionally included to reduce late reveals around low geometry.
-- Sounds, bomb information, teammate information, last-known positions, and other clues that are not part of the player entity remain available.
-- If CS2FOW does not recognize the CS2 server file, it disables itself instead of guessing private memory locations.
-- CS2FOW does not filter during a full update, when CS2 refreshes a player's complete game state. It also leaves both outgoing network lists unchanged if CS2 does not provide them safely.
-- Automated builds and tests cannot reproduce every detail of a live server's outgoing entity lists or guarantee against crashes in CS2's internal entity-copy code. Live-server testing is still necessary.
-
-## Troubleshooting
-
-**`cs2fow_status` says AVX is missing:** AVX is a CPU feature CS2FOW uses for fast geometry calculations. A physical CPU may support it while a virtual machine hides it, so check that the host exposes AVX fully to the guest.
-
-**Automatic bake says permission denied on Linux:** restore permission to run the files, then check whether filesystem or container security rules block them:
-
-```sh
-chmod +x game/csgo/tools/cs2fow_baker
-chmod +x game/csgo/tools/vrf/linux64/Source2Viewer-CLI
+Linux, внутри Steam Runtime 3 (так же собирает CI):
 ```
-
-When the automatic baker or ValveResourceFormat (VRF) map reader fails, the error includes the newest 8 KiB, roughly 8,000 bytes, of their combined output. Cancelling a bake or hitting the timeout also stops every helper program it started, so nothing is left running in the background.
-
-**The server program does not match:** your CS2 update and CS2FOW gamedata compatibility file do not belong together. Install a CS2FOW build verified for the current Valve server program. There is intentionally no "try it anyway" switch.
-
-**A bake is rejected after a CS2 update:** Valve probably changed the map's source VPK archive. CS2FOW compares the saved and installed map fingerprints, then rebakes instead of trusting an old copy.
-
-**You need to report a bug:** include your CS2FOW version, operating system, map, `cs2fow_status` output, nearby server logs, what the players were doing, and a short clip for visibility or pop-in problems. Those details turn "it broke" into something that can actually be reproduced.
-
-## Building from source
-
-The build scripts download exact tested versions of the plugin interface (Metamod:Source), CS2 development files (HL2SDK), build tool (AMBuild), map reader (ValveResourceFormat), and Valve's standard Linux build environment (Steam Runtime). They then compile, test, verify, and package the project.
-
-Windows needs PowerShell, Python 3.8 or newer, and Visual Studio 2022 with the C++ workload:
-
-```powershell
-.\scripts\build-windows.ps1
-```
-
-Linux builds inside Steam Runtime 3, Valve's standard environment for Linux game software:
-
-```sh
 bash scripts/build-linux.sh
 ```
-
-Both scripts produce installable ZIP files under `packages/`. See the [code tour](docs/CODE_TOUR.md#build-test-package-and-release) for the complete build, test, package, and release flow.
-
-## Contributing
-
-Run CS2FOW on a real server. Test it, [send reproducible reports](https://github.com/karola3vax/CS2FOW/issues), and include the CS2FOW version, operating system, map, `cs2fow_status` output, nearby logs, and a short clip for visibility problems.
-
-If CS2FOW earns a place on your server, star the repository and share your clips. That helps more server owners find it and gives the project better real-world feedback.
-
-## Developer tools
-
-- [Code tour](docs/CODE_TOUR.md): follow the project layout, how work is divided between the game and background workers, safety rules, and build and release steps in plain language.
-- [Visibility Studio](tools/visibility_point_editor/README.md): simulate the rounded body capsules, padded rectangular AABB checks, movement, maps, smoke, HE grenades, and visibility decisions locally.
-- [CS2FOW Map Baker](https://cs2fow-bake-service.onrender.com/): prepare visibility data from a public Workshop map.
-- [Bake Service source](https://github.com/karola3vax/CS2FOW-Bake-Service): inspect the public baking service itself.
-
-Manual baker examples:
-
-```text
-cs2fow_baker --game <cs2-root> --map de_dust2 --output de_dust2.bvh8
-cs2fow_baker --list-maps --vpk <outer_dir.vpk>
-cs2fow_baker --inspect-bvh8 <file>
-cs2fow_baker --game <cs2-root> --map workshop/123/de_example --vpk <outer_dir.vpk> --output de_example.bvh8
+Windows (Visual Studio 2022, Python 3.8+):
 ```
+.\scripts\build-windows.ps1
+```
+Скрипты сами скачивают закреплённые версии Metamod, HL2SDK и AMBuild, собирают плагин,
+бейкер и тесты, прогоняют тесты и кладут zip в `packages/`. Устройство кода описано в
+[docs/CODE_TOUR.md](docs/CODE_TOUR.md) (на английском).
 
-## Support development
+## Лицензия
 
-CS2FOW is free and independently maintained. If it helps your server, even a small one-time or monthly contribution helps me keep up with CS2 updates, testing, Windows and Linux builds, report investigation, and community support: [Support development](https://buymeacoffee.com/karola3vax).
-
-## License
-
-CS2FOW is free and open-source software licensed under the [MIT License](LICENSE). Generated map files come from Counter-Strike 2 game data and are covered by [DATA_NOTICE](DATA_NOTICE). Dependencies keep their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES).
+MIT, см. [LICENSE](LICENSE); автор оригинального CS2FOW — karola3vax. Сгенерированные
+файлы карт `.bvh8` получены из данных CS2 и под лицензию MIT не подпадают, см.
+[DATA_NOTICE](DATA_NOTICE). Сторонние компоненты перечислены в
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
