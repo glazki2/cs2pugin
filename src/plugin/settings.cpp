@@ -43,7 +43,7 @@ namespace cs2fow
 	CConVar<int> cs2fow_debug_los_player("cs2fow_debug_los_player", FCVAR_NONE,
 										 "Temporarily draw one 1-based player's live capsule axes, muzzle, and AABB corners; 0 removes them", 0, true,
 										 0, true, static_cast<int>(k_max_players), on_convar_changed<int>);
-	CConVar<bool> cs2fow_auto_update("cs2fow_auto_update", FCVAR_NONE, "Automatically download verified compatible stable updates", true,
+	CConVar<bool> cs2fow_auto_update("cs2fow_auto_update", FCVAR_NONE, "Automatically download verified compatible stable updates", false,
 									 on_convar_changed<bool>);
 
 	namespace

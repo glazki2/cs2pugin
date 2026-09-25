@@ -126,7 +126,7 @@ class PackageTests(unittest.TestCase):
         ]
         self.assertEqual(lines[-1], "cs2fow_config_loaded")
         self.assertEqual(lines.count("cs2fow_config_loaded"), 1)
-        self.assertIn("cs2fow_auto_update 1", lines)
+        self.assertIn("cs2fow_auto_update 0", lines)
 
 
 if __name__ == "__main__":

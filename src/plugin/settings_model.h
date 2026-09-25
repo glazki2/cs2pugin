@@ -21,7 +21,7 @@ namespace cs2fow
 		int visibility_hold_ms {1000};
 		bool debug {};
 		int debug_los_player {};
-		bool automatic_updates {true};
+		bool automatic_updates {false};
 
 		bool operator==(const runtime_configuration&) const = default;
 	};

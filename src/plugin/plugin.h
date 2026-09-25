@@ -157,7 +157,7 @@ namespace cs2fow
 
 		const char* GetAuthor() override
 		{
-			return "karola3vax";
+			return "karola3vax, Artemon0, glazki2";
 		}
 
 		const char* GetName() override
@@ -172,7 +172,7 @@ namespace cs2fow
 
 		const char* GetURL() override
 		{
-			return "https://github.com/karola3vax/CS2FOW";
+			return "https://github.com/glazki2/cs2pugin";
 		}
 
 		const char* GetLicense() override
