@@ -89,8 +89,8 @@ namespace cs2fow
 		bake_completion completion;
 		completion.request = request;
 		process_result process;
-		const std::vector<std::filesystem::path> arguments {"--game",   request.game,   "--map", request.map, "--vpk",         request.source.vpk,
-															"--output", request.output, "--vrf", request.vrf, "--low-priority"};
+		const std::vector<std::filesystem::path> arguments {"--game", request.game,   "--map",		   request.map, "--vpk",
+															request.source.vpk, "--output", request.output, "--low-priority"};
 		if (!run_process(request.baker, arguments, k_auto_bake_timeout, &cancel_, true, posix_process_group::isolated, process, completion.error))
 		{
 			finish(std::move(completion));

@@ -572,14 +572,12 @@ namespace cs2fow
 		const std::filesystem::path base = api_->GetBaseDir();
 #if defined(_WIN32)
 		const std::filesystem::path baker = base / "tools" / "cs2fow_baker.exe";
-		const std::filesystem::path vrf = base / "tools" / "vrf" / "win64" / "Source2Viewer-CLI.exe";
 #else
 		const std::filesystem::path baker = base / "tools" / "cs2fow_baker";
-		const std::filesystem::path vrf = base / "tools" / "vrf" / "linux64" / "Source2Viewer-CLI";
 #endif
-		if (!std::filesystem::is_regular_file(baker) || !std::filesystem::is_regular_file(vrf))
+		if (!std::filesystem::is_regular_file(baker))
 		{
-			disable("automatic baker or VRF is missing");
+			disable("automatic baker is missing");
 			return;
 		}
 #if !defined(_WIN32)
@@ -597,15 +595,10 @@ namespace cs2fow
 			disable("baker missing execute permission (chmod +x " + baker.string() + ")");
 			return;
 		}
-		if (!check_executable(vrf))
-		{
-			disable("VRF missing execute permission (chmod +x " + vrf.string() + ")");
-			return;
-		}
 #endif
 		disabled_reason_ = "automatic bake in progress";
 		META_CONPRINTF("[CS2FOW] %s for %s; starting automatic bake\n", reason.c_str(), map.c_str());
-		if (!automatic_baker_.start({map, source, base.parent_path().parent_path(), output, baker, vrf}))
+		if (!automatic_baker_.start({map, source, base.parent_path().parent_path(), output, baker}))
 		{
 			disable("could not start automatic baker thread");
 		}

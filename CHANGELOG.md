@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 (glazki2/cs2pugin fork of CS2FOW CE 0.3.8)
+
+- Load on current Metamod:Source 2.0 (plugin API 18): the GameFrame, CheckTransmit and LoadEventsFromFile hooks now use KHook, because Metamod removed SourceHook on 2026-09-08 and refuses older plugins.
+- Build against the latest HL2SDK and Metamod for the September 2026 CS2 update (ConVar registration, IFileSystem, CGlobalVars and entity-system header changes); the plugin is linked with `-fno-gnu-unique` so Metamod can unload it.
+- Add limited mode (`cs2fow_limited_mode 1`, default): when the server binary is not the build the gamedata was verified for, walls-only filtering keeps running with a conservative hull-shaped body instead of turning protection off. It never calls private functions or reads private smoke layouts, validates the entity system before use, and stops filtering for the map if a CheckTransmit recipient list looks structurally wrong. `cs2fow_status` shows which mode is active.
+- Replace ValveResourceFormat (a .NET program) with a native C++ map-physics reader in `cs2fow_baker`: binary KV3 versions 0-5 with LZ4/Zstandard, resource blocks, and hull/mesh/sphere/capsule shapes grouped exactly like the VRF 19.2 export. Packages no longer ship `tools/vrf`. `--compare-glb` optionally checks a bake against a GLB from another tool. The .NET-based Visibility Studio tooling was removed with it.
+- Automatic updates are off by default and, when enabled, only look at this fork's GitHub releases.
+
 ## 0.3.7
 
 - Increased the default horizontal AABB padding from 8 to 32 units while keeping the top padding at 8 units.

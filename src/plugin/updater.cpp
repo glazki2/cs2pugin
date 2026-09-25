@@ -50,16 +50,11 @@ namespace cs2fow
 		constexpr const char* k_asset_platform = "windows-x86_64";
 		constexpr const char* k_binary_extension = ".dll";
 		constexpr const char* k_baker_name = "cs2fow_baker.exe";
-		constexpr const char* k_vrf_folder = "win64";
-		constexpr std::array<std::string_view, 5> k_vrf_files {"Source2Viewer-CLI.exe", "TinyEXRNative.dll", "blake3_dotnet.dll", "libSkiaSharp.dll",
-															   "spirv-cross.dll"};
 #else
 		constexpr const char* k_platform_name = "linux";
 		constexpr const char* k_asset_platform = "linux-x86_64";
 		constexpr const char* k_binary_extension = ".so";
 		constexpr const char* k_baker_name = "cs2fow_baker";
-		constexpr const char* k_vrf_folder = "linux64";
-		constexpr std::array<std::string_view, 4> k_vrf_files {"Source2Viewer-CLI", "libblake3_dotnet.so", "libSkiaSharp.so", "libspirv-cross.so"};
 #endif
 
 		fs::path game_root()
@@ -342,13 +337,6 @@ namespace cs2fow
 			{
 				return false;
 			}
-			for (std::string_view name : k_vrf_files)
-			{
-				if (!fs::is_regular_file(stage / "tools" / "vrf" / k_vrf_folder / name, error))
-				{
-					return false;
-				}
-			}
 			return true;
 		}
 
@@ -455,15 +443,14 @@ namespace cs2fow
 		}
 
 		const fs::path live_baker = root / "tools" / k_baker_name;
-		const fs::path live_vrf = root / "tools" / "vrf" / k_vrf_folder;
 		if (!copy_file_atomically(stage / "addons" / "cs2fow" / "gamedata" / "cs2fow.games.txt", live_plugin / "gamedata" / "cs2fow.games.txt")
-			|| !copy_file_atomically(stage / "tools" / k_baker_name, live_baker) || !copy_directory(stage / "tools" / "vrf" / k_vrf_folder, live_vrf)
+			|| !copy_file_atomically(stage / "tools" / k_baker_name, live_baker)
 			|| !merge_config(stage / "cfg" / "cs2fow.cfg", root / "cfg" / "cs2fow.cfg", version)
 			|| !copy_file_atomically(stage / "THIRD_PARTY_NOTICES", live_plugin / "THIRD_PARTY_NOTICES")
 			|| !copy_directory(stage / "licenses", live_plugin / "licenses") || !copy_file_atomically(stage / "README.md", live_plugin / "README.md")
 			|| !copy_file_atomically(stage / "CHANGELOG.md", live_plugin / "CHANGELOG.md")
 			|| !copy_file_atomically(stage / "LICENSE", live_plugin / "LICENSE") || !copy_file_atomically(package_binary(stage), stable_binary)
-			|| !set_executable(live_baker) || !set_executable(live_vrf / k_vrf_files.front()) || !write_vdf(root, "cs2fow"))
+			|| !set_executable(live_baker) || !write_vdf(root, "cs2fow"))
 		{
 			Warning("[CS2FOW] The downloaded update could not be installed "
 					"completely. CS2FOW will retry on the next server start.\n");

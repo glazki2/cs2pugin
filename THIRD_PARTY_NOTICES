@@ -24,11 +24,18 @@ part of the CS2FOW license grant. See their upstream license files.
 The CheckTransmit integration pattern is adapted from CS2KZ and CS2Fixes.
 Their source and license files are retained in the workspace references.
 
-ValveResourceFormat / Source 2 Viewer CLI release 19.2 (build 19.2.6339) is invoked as a separate
-offline tool and redistributed in the Windows and Linux core packages. Its
-exact release assets, NuGet graph, native files, versions, and verbatim
-licenses/notices are recorded under licenses/ in those packages and under
-third_party/vrf_licenses in the source tree.
+Zstandard 1.5.7 single-file decompressor
+Copyright (c) Meta Platforms, Inc. and affiliates.
+BSD 3-Clause License (dual-licensed with GPLv2 upstream). Generated from tag
+v1.5.7 with build/single_file_libs/combine.py; used by the map baker to read
+Zstandard-compressed KV3 physics data.
+
+ValveResourceFormat
+Copyright (c) 2015 ValveResourceFormat Contributors
+MIT License. The baker's native KV3/physics reader follows ValveResourceFormat
+as its format reference, its surface-name table is ValveResourceFormat 19.2's
+known-key list, and tests/fixtures holds five of its test resources. No
+ValveResourceFormat binaries are invoked or redistributed.
 
 network_connection.pb.h is generated from Valve's HL2SDK protocol definition
 and is included only to compile the public engine interface declarations.

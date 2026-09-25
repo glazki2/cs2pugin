@@ -1,18 +1,33 @@
 # Third-party notices
 
-CS2AC uses the following third-party software. Each project remains under its own license and copyright.
+This CS2FOW-based plugin uses the following third-party software. Each project
+remains under its own license and copyright. Packaged license texts are placed
+under `addons/cs2fow/licenses`.
 
-- [Metamod:Source](https://github.com/alliedmodders/metamod-source), pinned as a Git submodule. License text is included in `metamod-source/LICENSE.txt`.
-- [Source 2 SDK](https://github.com/alliedmodders/hl2sdk), CS2 branch, pinned as a Git submodule. Individual SDK files retain their Valve and contributor notices.
-- [AMBuild](https://github.com/alliedmodders/ambuild), downloaded at the commit pinned in the bootstrap scripts. It is licensed under the BSD 3-Clause License.
-- [ClientCvarValue](https://github.com/komashchenko/ClientCvarValue/tree/c29ea6112d9de4f1c349417d22337ba36e1adbe4), adapted for CS2AC's player-setting checks. It is licensed under GNU GPL version 3. Its exact license text is included in `licenses/CLIENTCVARVALUE-GPL-3.0.txt`.
-- [DynLibUtils](https://github.com/komashchenko/DynLibUtils/tree/5eb95475170becfcc64fd5d32d14ec2b76dcb6d4), used by the ClientCvarValue integration. It is licensed under the MIT License. Its exact license text is included in `licenses/DYNLIBUTILS-MIT.txt`.
-- [CS2KZ](https://github.com/KZGlobalTeam/cs2kz-metamod/tree/a8e99af7fb510b1776a489192d053e3d5553c020), portions of whose movement-analysis code were modified for CS2AC in 2026. It is licensed under GNU AGPL version 3. Its exact license text is included in `licenses/CS2KZ-AGPL-3.0.txt`.
-- [Funchook](https://github.com/kubo/funchook/tree/7cb8819594f0d586454011ab691fab4edb625068), vendored as headers and prebuilt x64 libraries. Funchook is licensed under GNU GPL version 2 or later with its documented linking exception. Its exact license text is included in `licenses/FUNCHOOK.txt`.
-- [diStorm 3.5.2b](https://github.com/gdabah/distorm/tree/3.5.2b), included in the vendored Funchook libraries. It is licensed under the BSD 3-Clause License. Its exact license text is included in `licenses/DISTORM.txt`.
-- [tinyformat](https://github.com/c42f/tinyformat), vendored as a header. It is licensed under the Boost Software License 1.0.
-- [PicoSHA2](https://github.com/okdshin/PicoSHA2/tree/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29), used to verify automatic-update packages. It is licensed under the MIT License. Its exact license text is included in `licenses/PICOSHA2-MIT.txt`.
-- [miniz](https://github.com/richgel999/miniz/tree/77d0dce8627735138c51770d1799a1ef48f2117d), used to unpack verified automatic-update packages on both operating systems. It is licensed under the MIT License. Its exact license text is included in `licenses/MINIZ-MIT.txt`.
-- [Protocol Buffers](https://github.com/protocolbuffers/protobuf), supplied by the pinned Source 2 SDK and generated during the build. It is licensed under the BSD 3-Clause License.
+- [Metamod:Source](https://github.com/alliedmodders/metamod-source) and its
+  [KHook](https://github.com/Kenzzer/KHook) headers, consumed at build time at the
+  commit pinned in `build-dependencies.json`.
+- [Source 2 SDK (HL2SDK, cs2 branch)](https://github.com/alliedmodders/hl2sdk), consumed at
+  build time; individual SDK files retain their Valve and contributor notices.
+  `third_party/generated/network_connection.pb.h` is generated from its protocol
+  definitions.
+- [AMBuild](https://github.com/alliedmodders/ambuild), the build tool, BSD 3-Clause.
+- [cgltf](https://github.com/jkuhlmann/cgltf) 1.15, MIT. Used by the baker's optional
+  `--compare-glb` parity check and tests.
+- [MaskedOcclusionCulling](https://github.com/GameTechDev/MaskedOcclusionCulling), Apache-2.0.
+- [miniz](https://github.com/richgel999/miniz) 3.1.2, MIT. Unpacks verified update packages.
+- [PicoSHA2](https://github.com/okdshin/PicoSHA2), MIT. Verifies update package digests.
+- [Zstandard](https://github.com/facebook/zstd) 1.5.7 single-file decompressor, BSD 3-Clause
+  (dual-licensed with GPLv2 upstream). Reads Zstandard-compressed map physics.
+- [ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat), MIT. Format
+  reference for the native KV3/physics reader; source of the surface-name table
+  (`src/baker/surface_names.inc`) and of the test resources in `tests/fixtures`. No
+  ValveResourceFormat binaries are built, invoked or shipped.
+- [Funchook](https://github.com/kubo/funchook) with [diStorm](https://github.com/gdabah/distorm),
+  prebuilt libraries under `vendor/funchook` that only the optional CMake build links;
+  the AMBuild release build does not use them.
 
-The upstream links above identify the corresponding source used by the vendored or modified components. Release archives include the applicable license texts under `addons/cs2ac/licenses`.
+The CheckTransmit integration pattern is adapted from CS2KZ and CS2Fixes.
+
+Generated `.bvh8` map data is derived from Counter-Strike 2 game data and is not
+licensed under the project's MIT license; see `DATA_NOTICE`.

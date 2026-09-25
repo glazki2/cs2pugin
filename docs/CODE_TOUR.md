@@ -65,9 +65,8 @@ It explains the intent of the code. The engine and file-format details are still
 | `src/core/transmit_masks.h` | Parse gamedata numbers, read the private full-update flag, and perform the paired withhold operation. |
 | `src/core/transmit_debug.h` | Aggregate entity bits actually hidden by CS2FOW without allocating in `CheckTransmit`. |
 | `src/core/subprocess.*` | Start external tools with argument lists, timeouts, cancellation, and captured output. |
-| `src/baker/` | Command-line bake sequence and physics-GLB import. |
+| `src/baker/` | Command-line bake sequence, the native binary-KV3 and map-physics reader (`kv3.*`, `physics_import.*`), the shared bake recipe (`physics_recipe.*`), and the optional GLB parity reader. |
 | `tests/` | Small assert-based tests grouped into map/BVH and visibility/transmit responsibilities. |
-| `tools/visibility_point_editor/` | Local runtime-only Studio for simulating the native capsule/AABB LOS order, BVH8, movement, visibility, smoke, and HE behavior. |
 | `cfg/`, `gamedata/`, `data/` | Shipped settings, platform offsets, and optional map bakes. |
 
 ## Bake flow
@@ -76,7 +75,7 @@ It explains the intent of the code. The engine and file-format details are still
 2. `find_map_source` opens the outer VPK. A direct `maps/<map>/world_physics.vmdl_c` wins. If it is absent, `maps/<map>.vpk` is the fallback.
 3. `src/core/vpk.cpp` checks the VPK header, tree bounds, entry terminators, preload data, embedded/numbered archive ranges, and CRC before trusting extracted bytes. Version 2 embedded entries must stay inside its declared file-data section even when footer bytes follow it.
 4. For a nested map, the C++ baker extracts the nested VPK into a temporary directory. Python and the web service do not understand or patch VPK/BVH details.
-5. ValveResourceFormat exports the chosen `world_physics.vmdl_c` as a physics GLB. `glb_import.cpp` reads geometry groups and keeps the collision surfaces accepted by the bake recipe.
+5. The baker extracts the chosen `world_physics.vmdl_c` and `physics_import.cpp` reads it natively: the resource block table, the binary KV3 physics data (versions 0-5, uncompressed, LZ4 or Zstandard), and every sphere, capsule, hull and mesh. Shapes are grouped by collision attribute and surface property exactly like ValveResourceFormat 19.2's physics GLB export, and `physics_group_accepted` keeps the surfaces accepted by the bake recipe. `--compare-glb <physics.glb>` optionally checks the result against a GLB exported by another tool.
 6. `builder.cpp` packs the accepted triangles into eight-wide packets and builds the BVH8 tree.
 7. `bvh8_format.cpp` writes a version 3 file beside the destination. It reloads and verifies one rooted tree, unique reachable nodes/packets, depth, triangle totals, and payload CRC before atomically replacing the destination. A bad write leaves the previous valid bake in place.
 8. The baker writes a matching `.json` report with source checksums and geometry counts. `--debug-obj` optionally writes accepted triangles for tools such as MeshLab.
@@ -105,7 +104,7 @@ This is why a Valve map update cannot silently reuse old wall geometry.
 4. The manifest version and package SHA-256 must agree. Its Windows or Linux fingerprint list must contain the exact currently loaded `server.dll` or `libserver.so` size and CRC before the large package is downloaded.
 5. The package is unpacked on a background task with path, file-count, per-file, total-size, duplicate-entry, required-file, and SHA-256 checks. Only CS2FOW's known package paths are accepted.
 6. Staging copies the verified new plugin to `cs2fow-update`, writes a pending marker, and points CS2FOW's Metamod VDF at that bootstrap name. The running plugin remains unchanged.
-7. On the next full server start, that new bootstrap binary backs up the old stable binary, merges known values from the current config into the new commented template, updates gamedata, baker, VRF, documentation/licenses, and stable binary, restores Linux executable modes, and returns the VDF to `cs2fow`.
+7. On the next full server start, that new bootstrap binary backs up the old stable binary, merges known values from the current config into the new commented template, updates gamedata, baker, documentation/licenses, and stable binary, restores Linux executable modes, and returns the VDF to `cs2fow`.
 8. Map bakes under `addons/cs2fow/data/maps` are never copied, deleted, or replaced. Any failed request, validation, or install step keeps protection fail-open where appropriate and retries without guessing.
 
 ## Game-state and worker flow
@@ -178,14 +177,14 @@ The BVH8 data is loaded before the worker starts and remains unchanged until tha
 - Enabling/disabling filtering resets lifecycle, pair, and hidden-group state but preserves collected debug evidence.
 - A map change, level shutdown, or normal plugin-state reset also clears debug evidence.
 - Worker start resets pending/published work, cached blocking packets, reveal holds, and timing/pair statistics.
-- Automatic-baker stop cancels/joins its task and terminates its full baker/VRF process tree before old map state is discarded.
+- Automatic-baker stop cancels/joins its task and terminates its full baker process tree before old map state is discarded.
 - Automatic updates never hot-swap the running binary, never accept a release for a different CS2 fingerprint, and never touch installed map bakes.
 
 ## Where to make common changes
 
 | Change | Start here | Keep in mind |
 | --- | --- | --- |
-| Valve capsule bindings, AABB padding, input origins, or muzzle sampling | `src/core/visibility_sampling.cpp` | Keep the native and Studio runtime-alignment check synchronized; never add a static capture fallback. |
+| Valve capsule bindings, AABB padding, input origins, or muzzle sampling | `src/core/visibility_sampling.cpp` | Never add a static capture fallback for the verified build; limited mode uses `visibility_hull_capsules` only when bones are unavailable. |
 | Capsule silhouette/depth evaluation | `src/core/capsule_visibility.cpp` | Preserve conservative sub-pixel handling, smoke/HE behavior, and fail-open deadlines. |
 | Player/schema field capture | `src/plugin/game_state.cpp` | Live engine reads remain on the game thread and uncertainty fails open. |
 | Visibility scheduling, muzzle cache, or reveal hold | `src/plugin/visibility_worker.cpp` | Worker input must stay pointer-free copied data. |
@@ -194,14 +193,14 @@ The BVH8 data is loaded before the worker starts and remains unchanged until tha
 | VPK compatibility | `src/core/vpk.cpp` and `map_source.cpp` | Check every range/CRC and preserve direct-over-nested precedence. |
 | BVH traversal math | `src/core/bvh8.cpp` | Tests cover open/blocked rays and packet caching. |
 | BVH file layout | `src/core/bvh8_format.cpp` and `bvh8.h` | Validate before allocation and keep replacement atomic. |
-| Physics filtering/build recipe | `src/baker/glb_import.cpp`, `src/core/builder.cpp` | Recipe changes require an intentional format/recipe decision and new bakes. |
+| Physics filtering/build recipe | `src/baker/physics_recipe.cpp`, `src/baker/physics_import.cpp`, `src/core/builder.cpp` | Recipe changes require an intentional format/recipe decision and new bakes. |
 | Operator settings/commands | `src/plugin/settings.*`, `cfg/cs2fow.cfg`, `README.md` | Preserve the `cs2fow_*` public names and keep the transaction marker last. |
 | Binary/schema/private API compatibility | `src/plugin/runtime_compatibility.*`, `gamedata/cs2fow.games.txt` | Preserve exact fingerprint enforcement and the required/optional capability boundary. |
 | Automatic-update validation or install ownership | `src/plugin/updater.*`, release manifest, and `package.py` | Keep exact platform assets, SHA-256 checks, restart-only install, config backups, and map-bake preservation. |
 
 ## Build, test, package, and release
 
-`build-dependencies.json` is the source of truth for the exact Metamod, HL2SDK, AMBuild, VRF, and Steam Runtime 3 inputs. Bootstrap stores ignored source dependencies under `.build-deps/`; GitHub and GitLab CI call the same scripts used locally.
+`build-dependencies.json` is the source of truth for the exact Metamod, HL2SDK, AMBuild, and Steam Runtime 3 inputs. Bootstrap stores ignored source dependencies under `.build-deps/`; GitHub and GitLab CI call the same scripts used locally.
 
 Windows:
 
@@ -221,7 +220,7 @@ Inside a Steam Runtime 3 Linux environment:
 bash scripts/build-linux.sh
 ```
 
-Each build script fetches exact dependencies, configures and compiles, runs native and SDK-independent tests, verifies Windows imports or SteamRT3 symbol versions, and produces the corresponding ignored `packages/` ZIP. `scripts/check_studio.py` runs runtime alignment, BVH8, movement, smoke, HE, and malformed-input checks.
+Each build script fetches exact dependencies, configures and compiles, runs native and SDK-independent tests, verifies Windows imports or SteamRT3 symbol versions, and produces the corresponding ignored `packages/` ZIP.
 
 `package.py` takes the version from top-level `VERSION`. For official maps it asks `cs2fow_baker --inspect-bvh8` to validate every bake and requires matching report metadata. It also checks licenses, duplicate/unsafe ZIP entries, ZIP integrity, Linux modes, and checksums. Every stable release intended for automatic updates must attach both platform ZIPs and the matching `v<version>-manifest.json`; the updater rejects anything incomplete or incompatible.
 

@@ -26,26 +26,12 @@ ARCHIVE_NAMES = {
   "linux-x86_64": f"cs2fow-{VERSION}-linux-x86_64.zip",
   "official-maps": f"cs2fow-{VERSION}-official-maps.zip",
 }
-VRF_LICENSE_NAMES = (
-  "Blake3.LICENSE", "ConsoleAppFramework.LICENSE", "DEPENDENCIES.txt",
-  "dotnet-10.0.8.LICENSE", "dotnet-10.0.8.THIRD-PARTY-NOTICES",
-  "K4os.Compression.LZ4.LICENSE", "KeyValues2.COPYING", "Roboto.NOTICE",
-  "SharpGLTF.LICENSE", "SkiaSharp.LICENSE", "SkiaSharp.THIRD-PARTY-NOTICES",
-  "SPIRV-Cross.LICENSE", "TinyBCSharp.LICENSE", "TinyEXR.LICENSE",
-  "TinyEXR.NET.LICENSE", "TinyEXR.NOTICE", "ValveKeyValue.LICENSE",
-  "ValvePak.LICENSE", "ValveResourceFormat.LICENSE", "Vortice.LICENSE",
-  "zlib.LICENSE", "zstd.LICENSE", "ZstdSharp.LICENSE",
-)
 LICENSE_FILES = {
   ROOT / "third_party" / "cgltf.LICENSE": "cgltf.LICENSE",
   ROOT / "third_party" / "miniz.LICENSE": "miniz.LICENSE",
   ROOT / "third_party" / "picosha2.LICENSE": "picosha2.LICENSE",
-} | {
-  ROOT / "third_party" / "vrf_licenses" / name: name for name in VRF_LICENSE_NAMES
-}
-VRF_FILES = {
-  "win64": {"Source2Viewer-CLI.exe", "TinyEXRNative.dll", "blake3_dotnet.dll", "libSkiaSharp.dll", "spirv-cross.dll"},
-  "linux64": {"Source2Viewer-CLI", "libblake3_dotnet.so", "libSkiaSharp.so", "libspirv-cross.so"},
+  ROOT / "third_party" / "zstd" / "LICENSE": "zstd.LICENSE",
+  ROOT / "third_party" / "ValveResourceFormat.LICENSE": "ValveResourceFormat.LICENSE",
 }
 
 
@@ -122,15 +108,9 @@ def copy_common_files(out: Path) -> None:
   write_text(out / "addons" / "cs2fow" / "data" / "maps" / ".gitkeep", "")
 
 
-def build_core_package(platform: str, plugin_name: str, baker_name: str, vrf_dir: str) -> Path:
+def build_core_package(platform: str, plugin_name: str, baker_name: str) -> Path:
   out = package_root(f"cs2fow-{VERSION}-{platform}")
   copy_common_files(out)
-  vrf_source = ROOT / "tools" / "vrf" / vrf_dir
-  actual_vrf = {path.name for path in vrf_source.iterdir() if path.is_file()}
-  if actual_vrf != VRF_FILES[vrf_dir]:
-    raise RuntimeError(f"unexpected VRF files for {vrf_dir}: {', '.join(sorted(actual_vrf ^ VRF_FILES[vrf_dir]))}")
-  for name in VRF_FILES[vrf_dir]:
-    copy_file(vrf_source / name, out / "tools" / "vrf" / vrf_dir / name)
   copy_file(ROOT / plugin_name, out / "addons" / "cs2fow" / "bin" / Path(plugin_name).name)
   copy_file(ROOT / baker_name, out / "tools" / Path(baker_name).name)
   write_text(
@@ -141,10 +121,8 @@ def build_core_package(platform: str, plugin_name: str, baker_name: str, vrf_dir
   modes: dict[str, int] = {}
   if platform.startswith("linux"):
     (out / "tools" / "cs2fow_baker").chmod(0o755)
-    (out / "tools" / "vrf" / "linux64" / "Source2Viewer-CLI").chmod(0o755)
     modes = {
       "tools/cs2fow_baker": 0o755,
-      "tools/vrf/linux64/Source2Viewer-CLI": 0o755,
     }
   archive = make_zip(out, modes)
   required = {
@@ -153,9 +131,7 @@ def build_core_package(platform: str, plugin_name: str, baker_name: str, vrf_dir
     "addons/metamod/cs2fow.vdf",
     "cfg/cs2fow.cfg",
     "tools/" + Path(baker_name).name,
-  } | {f"licenses/{name}" for name in LICENSE_FILES.values()} | {
-    f"tools/vrf/{vrf_dir}/{name}" for name in VRF_FILES[vrf_dir]
-  }
+  } | {f"licenses/{name}" for name in LICENSE_FILES.values()}
   verify_zip(archive, required, set(modes))
   return archive
 
@@ -284,14 +260,12 @@ def main() -> None:
       "windows-x86_64",
       "build/cs2fow/windows-x86_64/cs2fow.dll",
       "build/cs2fow_baker/windows-x86_64/cs2fow_baker.exe",
-      "win64",
     ))
   if "linux-x86_64" in targets:
     archives.append(build_core_package(
       "linux-x86_64",
       "build-linux/cs2fow/linux-x86_64/cs2fow.so",
       "build-linux/cs2fow_baker/linux-x86_64/cs2fow_baker",
-      "linux64",
     ))
   if "official-maps" in targets:
     archives.append(build_official_maps_package())

@@ -12,8 +12,9 @@ def configure(compiler, plugin=False):
   compiler.cxxincludes += [
     os.path.join(root, 'src', 'core'),
     os.path.join(root, 'src', 'baker'),
-  os.path.join(root, 'third_party'),
-  os.path.join(root, 'third_party', 'generated'),
+    os.path.join(root, 'third_party'),
+    os.path.join(root, 'third_party', 'generated'),
+    os.path.join(root, 'third_party', 'zstd'),
   ]
   if compiler.behavior == 'msvc':
     compiler.cflags += ['/W4', '/std:c++20', '/EHsc', '/permissive-']
@@ -50,9 +51,18 @@ map_io = [
   os.path.join(root, 'src', 'core', 'vpk.cpp'),
 ]
 
+# Native map-physics reader (binary KV3 + LZ4/Zstandard); replaces the external
+# ValveResourceFormat CLI the baker used to launch.
+physics_reader = [
+  os.path.join(root, 'src', 'baker', 'kv3.cpp'),
+  os.path.join(root, 'src', 'baker', 'physics_import.cpp'),
+  os.path.join(root, 'src', 'baker', 'physics_recipe.cpp'),
+  os.path.join(root, 'third_party', 'zstd', 'zstddeclib.c'),
+]
+
 baker = config.cxx.Program('cs2fow_baker')
 configure(baker.compiler)
-baker.sources += geometry + map_io + [
+baker.sources += geometry + map_io + physics_reader + [
   os.path.join(root, 'src', 'core', 'subprocess.cpp'),
   os.path.join(root, 'src', 'baker', 'glb_import.cpp'),
   os.path.join(root, 'src', 'baker', 'main.cpp'),
@@ -64,7 +74,7 @@ configure(tests.compiler)
 tests.compiler.cxxincludes += [os.path.join(root, 'src', 'plugin')]
 if 'NDEBUG' in tests.compiler.defines:
   tests.compiler.defines.remove('NDEBUG')
-tests.sources += geometry + map_io + [
+tests.sources += geometry + map_io + physics_reader + [
   os.path.join(root, 'third_party', 'masked_occlusion_culling', 'MaskedOcclusionCulling.cpp'),
   os.path.join(root, 'src', 'core', 'subprocess.cpp'),
   os.path.join(root, 'src', 'core', 'capsule_visibility.cpp'),
@@ -74,6 +84,7 @@ tests.sources += geometry + map_io + [
   os.path.join(root, 'src', 'baker', 'glb_import.cpp'),
   os.path.join(root, 'src', 'plugin', 'visibility_worker.cpp'),
   os.path.join(root, 'tests', 'map_and_bvh_tests.cpp'),
+  os.path.join(root, 'tests', 'physics_import_tests.cpp'),
   os.path.join(root, 'tests', 'structure_tests.cpp'),
   os.path.join(root, 'tests', 'test_main.cpp'),
   os.path.join(root, 'tests', 'visibility_and_transmit_tests.cpp'),

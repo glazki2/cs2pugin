@@ -25,7 +25,6 @@ namespace cs2fow
 		std::filesystem::path game;
 		std::filesystem::path output;
 		std::filesystem::path baker;
-		std::filesystem::path vrf;
 	};
 
 	struct bake_completion

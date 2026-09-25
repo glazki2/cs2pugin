@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
-import urllib.request
-import zipfile
 from pathlib import Path
 
 
@@ -25,14 +21,6 @@ def run(*args: str, cwd: Path | None = None) -> None:
 
 def git(target: Path, *args: str) -> None:
   run("git", "-C", str(target), *args)
-
-
-def sha256(path: Path) -> str:
-  digest = hashlib.sha256()
-  with path.open("rb") as stream:
-    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-      digest.update(chunk)
-  return digest.hexdigest()
 
 
 def checkout(name: str, spec: dict[str, str]) -> Path:
@@ -63,52 +51,6 @@ def checkout(name: str, spec: dict[str, str]) -> Path:
   return target
 
 
-def install_vrf(manifest: dict[str, object], platform: str) -> None:
-  vrf = manifest["vrf"]
-  assert isinstance(vrf, dict)
-  spec = vrf[platform]
-  assert isinstance(spec, dict)
-  version = str(vrf["version"])
-  digest = str(spec["sha256"])
-  archive_name = str(spec["archive"])
-  expected = {str(name) for name in spec["files"]}
-  output = ROOT / "tools" / "vrf" / ("win64" if platform == "windows" else "linux64")
-  stamp = DEPENDENCIES / f"vrf-{platform}.stamp"
-  stamp_value = f"{version} {digest}\n"
-  if stamp.is_file() and stamp.read_text(encoding="utf-8") == stamp_value \
-      and output.is_dir() and {path.name for path in output.iterdir() if path.is_file()} == expected:
-    return
-
-  url = (
-    "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/"
-    f"download/{version}/{archive_name}"
-  )
-  with tempfile.TemporaryDirectory() as directory:
-    temporary = Path(directory)
-    archive = temporary / archive_name
-    urllib.request.urlretrieve(url, archive)
-    actual = sha256(archive)
-    if actual != digest:
-      raise RuntimeError(f"VRF archive checksum mismatch: {actual}")
-    with zipfile.ZipFile(archive) as package:
-      package.extractall(temporary / "vrf")
-    found = {
-      path.name: path for path in (temporary / "vrf").rglob("*")
-      if path.is_file() and path.name in expected
-    }
-    missing = expected - found.keys()
-    if missing:
-      raise RuntimeError(f"VRF archive is missing: {', '.join(sorted(missing))}")
-    if output.exists():
-      shutil.rmtree(output)
-    output.mkdir(parents=True)
-    for name in sorted(expected):
-      shutil.copy2(found[name], output / name)
-  if platform == "linux":
-    (output / "Source2Viewer-CLI").chmod(0o755)
-  stamp.write_text(stamp_value, encoding="utf-8")
-
-
 def main() -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument("--platform", choices=("windows", "linux"), required=True)
@@ -121,7 +63,6 @@ def main() -> None:
   git(metamod, "submodule", "update", "--init", "--depth", "1", "third_party/khook")
   checkout("hl2sdk-manifests", manifest["hl2sdk_manifests"])
   checkout("hl2sdk-cs2", manifest["hl2sdk"])
-  install_vrf(manifest, args.platform)
 
 
 if __name__ == "__main__":

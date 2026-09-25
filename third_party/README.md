@@ -15,5 +15,13 @@ automatic-update packages.
 `161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29`, used to verify update SHA-256
 digests.
 
-`vrf_licenses/` records the exact ValveResourceFormat 19.2 release files,
-restored package graph, and redistribution notices copied into core packages.
+`ValveResourceFormat.LICENSE` (MIT) covers the ValveResourceFormat-derived
+surface-name table in `src/baker/surface_names.inc` and the test resources in
+`tests/fixtures`. ValveResourceFormat itself is no longer built or shipped.
+
+`zstd/` is the Zstandard 1.5.7 single-file decompressor (`zstddeclib.c`,
+`zstd.h`, `zstd_errors.h`), generated from tag `v1.5.7` with
+`build/single_file_libs/combine.py -r ../../lib -x legacy/zstd_legacy.h -k zstd.h`
+and its `../zstd.h` include pointed at the copied header. BSD-3-Clause
+(dual-licensed with GPLv2 upstream); see `zstd/LICENSE`. The baker uses it to
+read ZSTD-compressed KV3 physics data without external tools.

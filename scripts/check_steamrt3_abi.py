@@ -16,7 +16,6 @@ def main() -> None:
     ROOT / "build-linux/cs2fow/linux-x86_64/cs2fow.so",
     ROOT / "build-linux/cs2fow_baker/linux-x86_64/cs2fow_baker",
     ROOT / "build-linux/cs2fow_tests/linux-x86_64/cs2fow_tests",
-    *(ROOT / "tools/vrf/linux64").rglob("*"),
   ]
   failures: list[str] = []
   for path in paths:

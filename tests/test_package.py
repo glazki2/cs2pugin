@@ -91,16 +91,17 @@ class PackageTests(unittest.TestCase):
         self.assertIn("cgltf.LICENSE", package.LICENSE_FILES.values())
         self.assertIn("miniz.LICENSE", package.LICENSE_FILES.values())
         self.assertIn("picosha2.LICENSE", package.LICENSE_FILES.values())
+        self.assertIn("zstd.LICENSE", package.LICENSE_FILES.values())
+        self.assertIn("ValveResourceFormat.LICENSE", package.LICENSE_FILES.values())
         self.assertTrue(all(path.is_file() for path in package.LICENSE_FILES))
-        self.assertEqual(len(package.VRF_FILES["win64"]), 5)
-        self.assertEqual(len(package.VRF_FILES["linux64"]), 4)
+        # The baker reads map physics natively; no .NET/VRF tools are shipped.
+        self.assertFalse(hasattr(package, "VRF_FILES"))
 
     def test_build_inputs_are_pinned_and_ci_uses_shared_scripts(self):
         manifest = json.loads((package.ROOT / "build-dependencies.json").read_text(encoding="utf-8"))
         for dependency in ("ambuild", "metamod", "hl2sdk_manifests", "hl2sdk"):
             self.assertRegex(manifest[dependency]["commit"], r"^[0-9a-f]{40}$")
-        self.assertRegex(manifest["vrf"]["windows"]["sha256"], r"^[0-9a-f]{64}$")
-        self.assertRegex(manifest["vrf"]["linux"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertNotIn("vrf", manifest)
         self.assertRegex(manifest["steamrt3_image"], r"@sha256:[0-9a-f]{64}$")
 
         github = (package.ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
@@ -108,7 +109,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("scripts/build-windows.ps1", github)
         self.assertIn("scripts/build-linux.sh", github)
         self.assertIn("scripts/build-linux.sh", gitlab)
-        self.assertIn("scripts/check_studio.py", gitlab)
+        self.assertNotIn("check_studio", gitlab)
         for action in re.findall(r"uses:\s*[^@\s]+@([^\s]+)", github):
             self.assertRegex(action, r"^[0-9a-f]{40}$")
         self.assertIn(manifest["steamrt3_image"], github)

@@ -19,6 +19,7 @@ def run(*args: str, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None
 def main() -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument("--platform", choices=("windows", "linux"), required=True)
+  # Accepted for older callers; the Visibility Studio was removed with VRF.
   parser.add_argument("--skip-studio", action="store_true")
   args = parser.parse_args()
 
@@ -46,8 +47,6 @@ def main() -> None:
   )
   run(str(executable))
   run(python, "-m", "unittest", "discover", "-v", "tests")
-  if not args.skip_studio:
-    run(python, str(ROOT / "scripts/check_studio.py"))
   checker = "check_windows_imports.py" if args.platform == "windows" \
     else "check_steamrt3_abi.py"
   run(python, str(ROOT / "scripts" / checker))

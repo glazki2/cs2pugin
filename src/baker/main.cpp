@@ -1,10 +1,12 @@
 #include "builder.h"
 
-// Command-line coordinator for map listing and baking. It turns validated VPK
-// physics into a verified BVH8/report (and optional OBJ), owns temporary files,
-// and exits with an error before replacing trusted output on any failed step.
+// Command-line coordinator for map listing and baking. It reads validated VPK
+// physics natively (no external tools) into a verified BVH8/report (and optional
+// OBJ), owns temporary files, and exits with an error before replacing trusted
+// output on any failed step.
 #include "glb_import.h"
 #include "map_source.h"
+#include "physics_import.h"
 #include "subprocess.h"
 #include "vpk.h"
 
@@ -30,7 +32,7 @@ namespace cs2fow
 			std::filesystem::path game;
 			std::string map;
 			std::filesystem::path output;
-			std::filesystem::path vrf;
+			std::filesystem::path compare_glb;
 			std::filesystem::path vpk;
 			std::filesystem::path debug_obj;
 			std::filesystem::path studio_surfaces;
@@ -70,7 +72,7 @@ namespace cs2fow
 				{
 					result.inspect_bvh8 = argv[++i];
 				}
-				else if ((option == "--game" || option == "--map" || option == "--output" || option == "--vrf" || option == "--vpk"
+				else if ((option == "--game" || option == "--map" || option == "--output" || option == "--compare-glb" || option == "--vpk"
 						  || option == "--debug-obj" || option == "--studio-surfaces")
 						 && i + 1 < argv.size())
 				{
@@ -87,9 +89,9 @@ namespace cs2fow
 					{
 						result.output = value;
 					}
-					else if (option == "--vrf")
+					else if (option == "--compare-glb")
 					{
-						result.vrf = value;
+						result.compare_glb = value;
 					}
 					else if (option == "--vpk")
 					{
@@ -111,7 +113,7 @@ namespace cs2fow
 			}
 			if (!result.inspect_bvh8.empty())
 			{
-				return !result.list_maps && result.game.empty() && result.map.empty() && result.output.empty() && result.vrf.empty()
+				return !result.list_maps && result.game.empty() && result.map.empty() && result.output.empty() && result.compare_glb.empty()
 					   && result.vpk.empty() && result.debug_obj.empty() && result.studio_surfaces.empty() && !result.low_priority;
 			}
 			if (result.list_maps)
@@ -245,80 +247,35 @@ namespace cs2fow
 			return true;
 		}
 
-		std::filesystem::path vrf_path(const arguments& args)
+		// Optional parity check against a physics GLB exported by another tool:
+		// the same groups, surfaces, decisions and triangle counts are required.
+		bool compare_with_glb(const std::filesystem::path& glb, const import_report& native, std::string& error)
 		{
-			if (!args.vrf.empty())
+			std::vector<triangle> triangles;
+			import_report reference;
+			if (!import_physics_glb(glb, triangles, reference, error))
 			{
-				return args.vrf;
-			}
-#if defined(_WIN32)
-			return "tools/vrf/win64/Source2Viewer-CLI.exe";
-#else
-			return "tools/vrf/linux64/Source2Viewer-CLI";
-#endif
-		}
-
-		bool invoke_vrf(const arguments& args, const std::vector<std::filesystem::path>& arguments, std::string& error)
-		{
-			process_result result;
-			if (!run_process(vrf_path(args), arguments, std::chrono::minutes(10), nullptr, false, posix_process_group::inherited, result, error))
-			{
+				error = "comparison GLB: " + error;
 				return false;
 			}
-			if (result.timed_out)
+			const auto unknown = [](const std::string& surface)
+			{ return surface.rfind("unknown_surface_", 0) == 0 || surface.rfind("vrf_unknown_key_", 0) == 0; };
+			bool same = native.raw_triangles == reference.raw_triangles && native.accepted_triangles == reference.accepted_triangles
+						&& native.groups.size() == reference.groups.size();
+			for (size_t index = 0; same && index < native.groups.size(); ++index)
 			{
-				error = "VRF CLI timed out";
-				if (!result.output_tail.empty())
-				{
-					error += "\n" + result.output_tail;
-				}
-				return false;
+				const physics_group_report& left = native.groups[index];
+				const physics_group_report& right = reference.groups[index];
+				same = left.tags == right.tags && left.triangles == right.triangles && left.accepted == right.accepted
+					   && (left.surface_property == right.surface_property || (unknown(left.surface_property) && unknown(right.surface_property)));
 			}
-			if (result.exit_code != 0)
+			if (!same)
 			{
-				error = "VRF CLI failed with exit code " + std::to_string(result.exit_code);
-				if (!result.output_tail.empty())
-				{
-					error += "\n" + result.output_tail;
-				}
-				return false;
-			}
-			return true;
-		}
-
-		std::filesystem::path find_vrf_output(const std::filesystem::path& directory)
-		{
-			std::error_code error;
-			for (const auto& entry : std::filesystem::recursive_directory_iterator(directory, error))
-			{
-				if (entry.is_regular_file() && entry.path().filename().string().ends_with("_physics.glb") && entry.file_size() > 1024)
-				{
-					return entry.path();
-				}
-			}
-			return {};
-		}
-
-		bool export_glb(const arguments& args, const std::filesystem::path& vpk, const std::filesystem::path& temporary, std::filesystem::path& glb,
-						std::string& error)
-		{
-			if (!std::filesystem::exists(vrf_path(args)))
-			{
-				error = "VRF CLI not found; pass --vrf <path>";
-				return false;
-			}
-			const std::string resource = "maps/" + args.map + "/world_physics.vmdl_c";
-			if (!invoke_vrf(
-					args,
-					{"-i", vpk, "-o", temporary, "--decompile", "--vpk_filepath", resource, "--gltf_export_format", "glb", "--gltf_export_extras"},
-					error))
-			{
-				return false;
-			}
-			glb = find_vrf_output(temporary);
-			if (glb.empty())
-			{
-				error = "VRF did not emit a physics GLB";
+				std::ostringstream message;
+				message << "native physics differs from " << glb.string() << ": raw " << native.raw_triangles << " vs " << reference.raw_triangles
+						<< ", accepted " << native.accepted_triangles << " vs " << reference.accepted_triangles << ", groups " << native.groups.size()
+						<< " vs " << reference.groups.size();
+				error = message.str();
 				return false;
 			}
 			return true;
@@ -397,8 +354,8 @@ namespace cs2fow
 			arguments args;
 			if (!parse_arguments(argv, args))
 			{
-				std::cerr << "usage: cs2fow_baker --game <cs2-root> --map <name> [--vpk <file>] [--low-priority] [--output <file>] [--vrf <path>] "
-							 "[--debug-obj <file>] [--studio-surfaces <file>]\n"
+				std::cerr << "usage: cs2fow_baker --game <cs2-root> --map <name> [--vpk <file>] [--low-priority] [--output <file>] "
+							 "[--compare-glb <physics.glb>] [--debug-obj <file>] [--studio-surfaces <file>]\n"
 						  << "       cs2fow_baker --list-maps --vpk <file>\n"
 						  << "       cs2fow_baker --inspect-bvh8 <file>\n";
 				return 2;
@@ -474,23 +431,28 @@ namespace cs2fow
 				std::filesystem::remove_all(temporary);
 				return 1;
 			}
-			std::filesystem::path glb;
-			if (!export_glb(args, map_vpk, temporary / "physics", glb, error))
-			{
-				std::cerr << "cs2fow_baker: " << error << '\n';
-				std::filesystem::remove_all(temporary);
-				return 1;
-			}
+			const std::filesystem::path physics_file = temporary / "world_physics.vmdl_c";
 			std::vector<triangle> triangles;
 			std::vector<std::string> triangle_surfaces;
 			import_report report;
-			if (!import_physics_glb(glb, triangles, report, error, args.studio_surfaces.empty() ? nullptr : &triangle_surfaces))
+			if (!extract_vpk_entry(map_vpk, physics, physics_file, error)
+				|| !import_physics_resource_file(physics_file, triangles, report, error,
+												 args.studio_surfaces.empty() ? nullptr : &triangle_surfaces))
 			{
 				std::cerr << "cs2fow_baker: " << error << '\n';
 				std::filesystem::remove_all(temporary);
 				return 1;
 			}
 			std::filesystem::remove_all(temporary);
+			if (!args.compare_glb.empty())
+			{
+				if (!compare_with_glb(args.compare_glb, report, error))
+				{
+					std::cerr << "cs2fow_baker: " << error << '\n';
+					return 1;
+				}
+				std::cout << args.map << ": native physics matches " << args.compare_glb.string() << '\n';
+			}
 			if (args.map == "de_ancient" && physics.crc32 == 0x85c89fb4u && (report.raw_triangles != 967742u || report.accepted_triangles != 958598u))
 			{
 				std::cerr << "cs2fow_baker: Ancient fixture triangle counts do not match (raw=" << report.raw_triangles
