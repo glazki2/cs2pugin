@@ -150,8 +150,8 @@ namespace cs2fow
 	{
 		// Structural facts every real recipient list satisfies. A private layout
 		// change breaks at least one of them long before it could hide the wrong
-		// player: unique in-range slots, a boolean full-update flag, and two
-		// distinct entity lists.
+		// player: no slot appears twice, the full-update flag is a boolean, and the
+		// two entity lists are distinct.
 		uint64_t seen = 0;
 		for (int i = 0; i < count; ++i)
 		{
@@ -160,19 +160,24 @@ namespace cs2fow
 			{
 				continue;
 			}
-			int slot = -1;
-			std::memcpy(&slot, reinterpret_cast<const char*>(info) + compatibility_.recipient_slot_offset(), sizeof(slot));
-			if (slot < 0 || slot >= static_cast<int>(k_max_players) || (seen & (uint64_t {1} << slot)) != 0)
-			{
-				return false;
-			}
-			seen |= uint64_t {1} << slot;
 			uint8_t full_update = 0;
 			std::memcpy(&full_update, reinterpret_cast<const char*>(info) + compatibility_.transmit_offsets().full_update_offset, sizeof(full_update));
 			if (full_update > 1u || (info->m_pTransmitEntity != nullptr && info->m_pTransmitEntity == info->m_pTransmitAlways))
 			{
 				return false;
 			}
+			// Out-of-range slots are skipped later (never filtered), as before.
+			int slot = -1;
+			std::memcpy(&slot, reinterpret_cast<const char*>(info) + compatibility_.recipient_slot_offset(), sizeof(slot));
+			if (slot < 0 || slot >= static_cast<int>(k_max_players))
+			{
+				continue;
+			}
+			if ((seen & (uint64_t {1} << slot)) != 0)
+			{
+				return false;
+			}
+			seen |= uint64_t {1} << slot;
 		}
 		return true;
 	}
